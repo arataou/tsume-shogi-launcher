@@ -7,7 +7,6 @@
   const LABELS = { K:'\u7389', R:'\u98db', B:'\u89d2', G:'\u91d1', S:'\u9280', N:'\u6842', L:'\u9999', P:'\u6b69' };
   const PROMOTED = { R:'\u9f8d', B:'\u99ac', S:'\u5168', N:'\u572d', L:'\u674f', P:'\u3068' };
   const RANKS = ['', '\u4E00','\u4E8C','\u4E09','\u56DB','\u4E94','\u516D','\u4E03','\u516B','\u4E5D'];
-  const HOSHI = new Set(['3,3','7,3','3,7','7,7']);
   const USI_RANKS = ['', 'a','b','c','d','e','f','g','h','i'];
   const STORAGE_ENDPOINT = '/api/storage';
   const BRIDGE = location.protocol === 'http:' && (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
@@ -537,7 +536,6 @@
     el.classList.toggle('answer-mode',Boolean(state.answerShown));
     for (let y=1; y<=9; y++) for (let x=9; x>=1; x--) {
       const cell = document.createElement('div'); cell.className='cell'; cell.dataset.x=x; cell.dataset.y=y;
-      if (HOSHI.has(String(x) + ',' + String(y))) cell.classList.add('hoshi');
       if (same(state.selectedFrom, [x,y])) cell.classList.add('selected');
       if (hintMove && !state.locked && state.solutionIndex % 2 === 0 && ((hintMove.drop && same(hintMove.to,[x,y])) || (!hintMove.drop && (same(hintMove.from,[x,y]) || same(hintMove.to,[x,y]))))) cell.classList.add('hint');
       if (replayMove && ((replayMove.drop && same(replayMove.to,[x,y])) || (!replayMove.drop && (same(replayMove.from,[x,y]) || same(replayMove.to,[x,y]))))) cell.classList.add('replay-current');
