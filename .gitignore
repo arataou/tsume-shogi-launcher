@@ -1,0 +1,12 @@
+# 本地渲染检查和临时文件
+visual-check.png
+outputs/ShogiExplorer-Tsume/visual-check.png
+outputs/ShogiExplorer-Tsume/server-error.log
+
+# .NET / 发布过程缓存
+work/
+src/**/bin/
+src/**/obj/
+
+# 发行压缩包使用 GitHub Release 附件，不进入日常提交
+outputs/*.zip

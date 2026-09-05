@@ -1,0 +1,8 @@
+来源说明
+
+YaneuraOu 官方仓库：
+https://github.com/yaneurao/YaneuraOu
+
+本便携包使用本机已有的 YaneuraOu-Suisho5-AVX2.exe 和 eval\nn.bin，
+用于个人本地诘将棋训练中的玉方快速应手。未修改引擎可执行文件。
+YaneuraOu 的许可证和对应源代码以官方仓库为准；评估文件请按其原始发行来源的授权使用。
