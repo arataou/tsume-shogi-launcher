@@ -11,6 +11,7 @@
     TsumeLauncher.exe
       ├─ TsumeLauncher.html
       ├─ launcher.js
+      ├─ tsume-rules.js
       ├─ puzzle-data.js
       ├─ server.ps1
       ├─ puzzles/
@@ -103,7 +104,7 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
     toSfen(position)
       -> string
 
-当前 PC 页面已经先做棋子走法、吃子、打入、升变、攻方玉安全和“是否形成王手”的即时检查。下一步若需要单元测试，应把这些函数从 launcher.js 提取为无 UI 的 TsumeRules 模块。
+当前 PC 页面已经先做棋子走法、吃子、打入、升变、攻方玉安全和“是否形成王手”的即时检查；这些纯规则已提取到 `outputs/ShogiExplorer-Tsume/tsume-rules.js`，页面通过 `TsumeRules` 使用它们，Node 测试可以不启动 DOM 直接覆盖规则。
 
 ### 2. EngineBridge
 
@@ -122,6 +123,7 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 
 当前实现：
 
+- 静态页面资源包括 TsumeLauncher.html、puzzle-data.js、tsume-rules.js 和 launcher.js；
 - GET /api/health
 - GET /api/storage、POST /api/storage：读写本机训练记录文件；
 - POST /api/engine/reply
@@ -158,7 +160,7 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
     progressChanged
     achievementsChanged
 
-现在为了保持便携版简单，这些接口仍集中在 launcher.js 中；接口名称和语义先固定，后续拆文件不会改变用户数据格式。
+现在训练状态和 UI 事件仍集中在 launcher.js 中，纯规则由 TsumeRules 模块负责；接口名称和语义先固定，后续拆分不会改变用户数据格式。
 
 ## 四、PC 本地 HTTP 合同
 
@@ -169,6 +171,7 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 | GET | / | 返回训练页面 |
 | GET | /TsumeLauncher.html | 页面直达入口 |
 | GET | /puzzle-data.js | 返回内置题库 |
+| GET | /tsume-rules.js | 返回纯规则模块 |
 | GET | /launcher.js | 返回训练逻辑 |
 | GET | /api/health | 检查本地服务和引擎 |
 | GET | /api/storage | 读取本机训练记录 |

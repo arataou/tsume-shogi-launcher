@@ -32,7 +32,8 @@
     outputs/
       ShogiExplorer-Tsume/
         TsumeLauncher.html       页面和视觉样式
-        launcher.js              训练状态、规则和统计
+        launcher.js              训练状态、统计和引擎请求
+        tsume-rules.js           无 UI 的走子、王手、应手和将死规则核心
         puzzle-data.js           内置题库
         server.ps1               本地服务与引擎桥
         TsumeLauncher.exe        Windows 独立窗口宿主（Release 附件）
@@ -52,7 +53,13 @@
 
 ## 开发流程
 
-分支、提交、多窗口协作、版本更新节奏和发布验收门槛见 [DEVELOPMENT.md](DEVELOPMENT.md)。当前维护批次继续使用 `v0.1.0`，不会因为单个修复或重新打包立即升版本。
+小变更快速通道、自动推送/PR/合并、多窗口协作、版本更新节奏和发布验收门槛见 [DEVELOPMENT.md](DEVELOPMENT.md)。当前维护批次继续使用 `v0.1.0`，不会因为单个修复或重新打包立即升版本。
+
+## 规则测试
+
+规则核心可以脱离页面直接运行 Node 内置测试：
+
+    node --test .\tests\tsume-rules.test.js
 
 ## 第三方组件
 

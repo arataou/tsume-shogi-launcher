@@ -11,6 +11,12 @@
   const STORAGE_ENDPOINT = '/api/storage';
   const BRIDGE = location.protocol === 'http:' && (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
   const sourcePuzzles = typeof CURATED_PUZZLES === 'undefined' ? null : CURATED_PUZZLES;
+  const RULES = globalThis.TsumeRules;
+
+  if (!RULES) {
+    document.body.innerHTML = '<main class="shell"><section class="card"><h1>规则模块暂时无法加载</h1><p class="subtitle">请确认 tsume-rules.js、TsumeLauncher.html 和 launcher.js 在同一个文件夹中。</p></section></main>';
+    return;
+  }
 
   if (!Array.isArray(sourcePuzzles) || !sourcePuzzles.length) {
     document.body.innerHTML = '<main class="shell"><section class="card"><h1>\u9898\u5E93\u6682\u65F6\u65E0\u6CD5\u52A0\u8F7D</h1><p class="subtitle">\u8BF7\u786E\u8BA4 TsumeLauncher.html\u3001launcher.js \u548C puzzle-data.js \u5728\u540C\u4E00\u4E2A\u6587\u4EF6\u5939\u4E2D\u3002</p><p class="note">\u8BAD\u7EC3\u8BB0\u5F55\u4E0D\u4F1A\u56E0\u9898\u5E93\u52A0\u8F7D\u5931\u8D25\u800C\u4E22\u5931\u3002</p></section></main>';
@@ -296,19 +302,7 @@
     return {board,hands};
   }
   function applyPositionMove(position, move, owner) {
-    if (move.drop) {
-      position.hands[owner][move.drop]=Math.max(0,(position.hands[owner][move.drop] || 0)-1);
-      position.board[move.to[1]][move.to[0]]={owner,type:move.drop,promoted:false};
-      return;
-    }
-    const piece=position.board[move.from[1]][move.from[0]];
-    const captured=position.board[move.to[1]][move.to[0]];
-    if (captured && captured.owner!==owner && captured.type!=='K') position.hands[owner][captured.type]=(position.hands[owner][captured.type] || 0)+1;
-    position.board[move.from[1]][move.from[0]]=null;
-    if (piece) {
-      piece.promoted=piece.promoted || Boolean(move.promote);
-      position.board[move.to[1]][move.to[0]]=piece;
-    }
+    RULES.applyMove(position, move, owner);
   }
   function solutionMoveOwner(p, index) {
     const firstOwner=p?.initial?.sideToMove === 'defender' ? 'defender' : 'attacker';
@@ -652,38 +646,7 @@
     updateBankUI();
   }
 
-  function isInside(x,y) { return Number.isInteger(x) && Number.isInteger(y) && x>=1 && x<=9 && y>=1 && y<=9; }
-  function promotionZone(owner,y) { return owner === 'attacker' ? y<=3 : y>=7; }
-  function pathClear(board,from,to) {
-    const sx=Math.sign(to[0]-from[0]), sy=Math.sign(to[1]-from[1]); let x=from[0]+sx, y=from[1]+sy;
-    while (x!==to[0] || y!==to[1]) { if (board[y]?.[x]) return false; x+=sx; y+=sy; }
-    return true;
-  }
-  function goldLike(dx,dy,forward) { return (dy===forward && Math.abs(dx)<=1) || (dy===0 && Math.abs(dx)===1) || (dy===-forward && dx===0); }
-  function pieceAttacksSquare(piece,from,to,board) {
-    if (!piece || !isInside(from[0],from[1]) || !isInside(to[0],to[1]) || (from[0]===to[0] && from[1]===to[1])) return false;
-    const dx=to[0]-from[0], dy=to[1]-from[1], adx=Math.abs(dx), ady=Math.abs(dy), forward=piece.owner==='attacker' ? -1 : 1;
-    if (piece.promoted && ['P','L','N','S'].includes(piece.type)) return goldLike(dx,dy,forward);
-    if (piece.type==='K') return adx<=1 && ady<=1;
-    if (piece.type==='G') return goldLike(dx,dy,forward);
-    if (piece.type==='S') return (dy===forward && adx<=1) || (dy===-forward && adx===1);
-    if (piece.type==='N') return dy===2*forward && adx===1;
-    if (piece.type==='P') return dx===0 && dy===forward;
-    if (piece.type==='L') return dx===0 && dy*forward>0 && pathClear(board,from,to);
-    if (piece.type==='R') return ((dx===0 || dy===0) && pathClear(board,from,to)) || (piece.promoted && adx===1 && ady===1);
-    if (piece.type==='B') return (adx===ady && pathClear(board,from,to)) || (piece.promoted && adx+ady===1);
-    return false;
-  }
-  function findKing(board,owner) {
-    for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) if (board[y]?.[x]?.owner===owner && board[y][x].type==='K') return [x,y];
-    return null;
-  }
-  function isKingAttacked(board,owner) {
-    const king=findKing(board,owner); if (!king) return false;
-    const enemy=owner==='attacker' ? 'defender' : 'attacker';
-    for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) { const piece=board[y]?.[x]; if (piece?.owner===enemy && pieceAttacksSquare(piece,[x,y],king,board)) return true; }
-    return false;
-  }
+  const promotionZone = RULES.promotionZone;
   function promotionOption(move) {
     if (!move || move.drop || !Array.isArray(move.from) || !Array.isArray(move.to)) return 'none';
     const piece=state.board?.[move.from[1]]?.[move.from[0]];
@@ -692,89 +655,16 @@
     const forced=(piece.type==='P' || piece.type==='L') && move.to[1]===1 || piece.type==='N' && move.to[1]<=2;
     return forced ? 'force' : 'choice';
   }
-  function validateAttack(move) {
-    const bad=message => ({ok:false,message:message});
-    if (!move || !Array.isArray(move.to) || !isInside(move.to[0],move.to[1])) return bad('目标格无效。');
-    const board=state.board, hands=state.hands, target=board[move.to[1]]?.[move.to[0]];
-    if (move.drop) {
-      if (!TYPES.includes(move.drop) || Number(hands.attacker?.[move.drop]||0)<=0) return bad('持駒不足。');
-      if (target) return bad('打駒必须落在空格。');
-      if ((move.drop==='P' || move.drop==='L') && move.to[1]===1 || move.drop==='N' && move.to[1]<=2) return bad('歩・香・桂はこの段に打てません。');
-      if (move.drop==='P') for (let y=1; y<=9; y++) if (board[y]?.[move.to[0]]?.owner==='attacker' && board[y][move.to[0]].type==='P' && !board[y][move.to[0]].promoted) return bad('二歩。');
-    } else {
-      if (!Array.isArray(move.from) || !isInside(move.from[0],move.from[1])) return bad('起点无效。');
-      const piece=board[move.from[1]]?.[move.from[0]];
-      if (!piece || piece.owner!=='attacker') return bad('请选攻方棋子。');
-      if (target?.owner==='attacker') return bad('不能走到己方棋子上。');
-      if (target?.owner==='defender' && target.type==='K') return bad('玉不能直接取。');
-      if (!pieceAttacksSquare(piece,move.from,move.to,board)) return bad('この駒は指せません。');
-      const inZone=promotionZone('attacker',move.from[1]) || promotionZone('attacker',move.to[1]);
-      if (move.promote && (piece.promoted || !PROMOTABLE.includes(piece.type) || !inZone)) return bad('成れません。');
-      if (!piece.promoted && !move.promote && ((piece.type==='P' || piece.type==='L') && move.to[1]===1 || piece.type==='N' && move.to[1]<=2)) return bad('成りが必要です。');
-    }
-    const savedBoard=state.board, savedHands=state.hands;
-    state.board=clone(board); state.hands=clone(hands);
-    try {
-      applyMove(move,'attacker');
-      if (isKingAttacked(state.board,'attacker')) return bad('攻方玉が王手です。');
-      if (!isKingAttacked(state.board,'defender')) return bad('王手ではありません。');
-      if (move.drop === 'P' && isCheckmate()) return bad(TEXT.pawnDropMate);
-      return {ok:true};
-    } finally { state.board=savedBoard; state.hands=savedHands; }
-  }
-  function isValidDefenderReply(move) {
-    if (!move || !Array.isArray(move.to) || !isInside(move.to[0],move.to[1])) return false;
-    const board=state.board, hands=state.hands, target=board[move.to[1]]?.[move.to[0]];
-    if (move.drop) {
-      if (!TYPES.includes(move.drop) || Number(hands.defender?.[move.drop]||0)<=0 || target) return false;
-      if ((move.drop==='P' || move.drop==='L') && move.to[1]===9 || move.drop==='N' && move.to[1]>=8) return false;
-      if (move.drop==='P') for (let y=1; y<=9; y++) if (board[y]?.[move.to[0]]?.owner==='defender' && board[y][move.to[0]].type==='P' && !board[y][move.to[0]].promoted) return false;
-    } else {
-      if (!Array.isArray(move.from) || !isInside(move.from[0],move.from[1])) return false;
-      const piece=board[move.from[1]]?.[move.from[0]];
-      if (!piece || piece.owner!=='defender') return false;
-      if (target?.owner==='defender' || target?.type==='K') return false;
-      if (!pieceAttacksSquare(piece,move.from,move.to,board)) return false;
-      const inZone=promotionZone('defender',move.from[1]) || promotionZone('defender',move.to[1]);
-      if (move.promote && (piece.promoted || !PROMOTABLE.includes(piece.type) || !inZone)) return false;
-      if (!piece.promoted && !move.promote && ((piece.type==='P' || piece.type==='L') && move.to[1]===9 || piece.type==='N' && move.to[1]>=8)) return false;
-    }
-    const savedBoard=state.board, savedHands=state.hands;
-    state.board=clone(board); state.hands=clone(hands);
-    try {
-      applyMove(move,'defender');
-      return !isKingAttacked(state.board,'defender');
-    } finally { state.board=savedBoard; state.hands=savedHands; }
-  }
-  function hasLegalDefenderReply() {
-    const board=state.board, hands=state.hands;
-    for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) {
-      const piece=board[y]?.[x];
-      if (piece?.owner !== 'defender') continue;
-      for (let targetY=1; targetY<=9; targetY++) for (let targetX=1; targetX<=9; targetX++) {
-        const move={from:[x,y],to:[targetX,targetY],promote:false};
-        if (isValidDefenderReply(move)) return true;
-        if (!piece.promoted && PROMOTABLE.includes(piece.type) && (promotionZone('defender',y) || promotionZone('defender',targetY)) && isValidDefenderReply({...move,promote:true})) return true;
-      }
-    }
-    for (const type of TYPES) {
-      if (Number(hands.defender?.[type] || 0) <= 0) continue;
-      for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) {
-        if (isValidDefenderReply({drop:type,to:[x,y],promote:false})) return true;
-      }
-    }
-    return false;
-  }
-  function isCheckmate() {
-    return isKingAttacked(state.board,'defender') && !hasLegalDefenderReply();
-  }
+  function validateAttack(move) { return RULES.validateAttack({board:state.board,hands:state.hands},move); }
+  function isValidDefenderReply(move) { return RULES.isValidDefenderReply({board:state.board,hands:state.hands},move); }
+  function isCheckmate() { return RULES.isCheckmate({board:state.board,hands:state.hands}); }
   function selectableMove(move) {
     if (!move || move.drop || !Array.isArray(move.from) || !Array.isArray(move.to)) return {ok:false,message:'着法无效。'};
     const board=state.board, target=board[move.to[1]]?.[move.to[0]], piece=board[move.from[1]]?.[move.from[0]];
     if (!piece || piece.owner!=='attacker') return {ok:false,message:'请选攻方棋子。'};
     if (target?.owner==='attacker') return {ok:false,message:'不能走到己方棋子上。'};
     if (target?.owner==='defender' && target.type==='K') return {ok:false,message:'玉不能直接取。'};
-    if (!pieceAttacksSquare(piece,move.from,move.to,board)) return {ok:false,message:'这个棋子不能走到这里。'};
+    if (!RULES.pieceAttacksSquare(piece,move.from,move.to,board)) return {ok:false,message:'这个棋子不能走到这里。'};
     return {ok:true};
   }
   function cellClick(x,y) {
