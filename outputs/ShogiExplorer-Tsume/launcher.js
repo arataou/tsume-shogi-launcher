@@ -9,7 +9,7 @@
   const RANKS = ['', '\u4E00','\u4E8C','\u4E09','\u56DB','\u4E94','\u516D','\u4E03','\u516B','\u4E5D'];
   const HOSHI = new Set(['3,3','7,3','3,7','7,7']);
   const USI_RANKS = ['', 'a','b','c','d','e','f','g','h','i'];
-  const STORAGE = 'tsume-training-v4';
+  const STORAGE_ENDPOINT = '/api/storage';
   const BRIDGE = location.protocol === 'http:' && (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
   const sourcePuzzles = typeof CURATED_PUZZLES === 'undefined' ? null : CURATED_PUZZLES;
 
@@ -40,19 +40,84 @@
   const dateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
   const makeProgress = () => ({ records:{}, streak:0, lastSolvedDate:'', history:[], activity:[], settings:{ bank:'curated', engineEnabled:true, strictSteps:false, statsPeriod:'day' } });
 
-  function loadProgress() {
+  function normalizeProgress(value) {
     const base = makeProgress();
-    try {
-      const raw = localStorage.getItem(STORAGE) || localStorage.getItem('tsume-training-v3');
-      if (!raw) return base;
-      const value = JSON.parse(raw);
-      const merged = { ...base, ...value, records:value.records || {}, history:Array.isArray(value.history) ? value.history : [], activity:Array.isArray(value.activity) ? value.activity : [], settings:{ ...base.settings, ...(value.settings || {}) } };
-      if (!Array.isArray(value.activity) && merged.history.length) merged.activity = merged.history.map(item => ({ type:item.result, key:item.key, at:Number(item.at || 0), seconds:Number(item.seconds || 0) })).filter(item => item.at);
-      return merged;
-    } catch (_) { return base; }
+    const source = value && typeof value === 'object' ? value : {};
+    const merged = {
+      ...base,
+      ...source,
+      records:source.records && typeof source.records === 'object' && !Array.isArray(source.records) ? source.records : {},
+      history:Array.isArray(source.history) ? source.history : [],
+      activity:Array.isArray(source.activity) ? source.activity : [],
+      settings:{ ...base.settings, ...(source.settings || {}) }
+    };
+    if (!Array.isArray(source.activity) && merged.history.length) {
+      merged.activity = merged.history.map(item => ({ type:item.result, key:item.key, at:Number(item.at || 0), seconds:Number(item.seconds || 0) })).filter(item => item.at);
+    }
+    return merged;
   }
 
-  function saveProgress() { try { localStorage.setItem(STORAGE, JSON.stringify(progress)); } catch (_) {} }
+  function setStorageStatus(text, kind='') {
+    const element = $('storageStatus');
+    if (!element) return;
+    element.classList.remove('storage-status-ok','storage-status-off');
+    if (kind === 'ok') element.classList.add('storage-status-ok');
+    if (kind === 'off') element.classList.add('storage-status-off');
+    element.textContent = text;
+  }
+
+  let progress = makeProgress();
+  let settings = progress.settings;
+  let storageReady = false;
+  let saveChain = Promise.resolve();
+
+  async function loadProgress() {
+    if (!BRIDGE) {
+      setStorageStatus('请使用启动脚本', 'off');
+      return makeProgress();
+    }
+    try {
+      const response = await fetch(STORAGE_ENDPOINT, { cache:'no-store' });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.reason || 'storage-read-failed');
+      storageReady = true;
+      setStorageStatus('本机文件', 'ok');
+      return normalizeProgress(payload.data);
+    } catch (_) {
+      storageReady = false;
+      setStorageStatus('本地记录不可用', 'off');
+      return makeProgress();
+    }
+  }
+
+  function saveProgress() {
+    if (!BRIDGE || !storageReady) return Promise.resolve(false);
+    const snapshot = clone(progress);
+    saveChain = saveChain.catch(() => false).then(async () => {
+      try {
+        const response = await fetch(STORAGE_ENDPOINT, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body:JSON.stringify(snapshot)
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) throw new Error(payload.reason || 'storage-write-failed');
+        setStorageStatus('本机文件 · 已保存', 'ok');
+        return true;
+      } catch (_) {
+        setStorageStatus('本地记录保存失败', 'off');
+        return false;
+      }
+    });
+    return saveChain;
+  }
+
+  function flushProgress() {
+    if (!BRIDGE || !storageReady || !navigator.sendBeacon) return;
+    try {
+      navigator.sendBeacon(STORAGE_ENDPOINT, new Blob([JSON.stringify(progress)], { type:'application/json' }));
+    } catch (_) {}
+  }
   function key(p) { return `${p.mateLength}:${p.id}`; }
   function record(p) {
     const k = key(p);
@@ -110,8 +175,6 @@
     $('periodAverage').textContent = solved ? Math.round(seconds / solved) + 's' : '—';
   }
 
-  let progress = loadProgress();
-  const settings = progress.settings;
   let engineAvailable = false;
   let engineChecked = false;
   let state = {
@@ -418,13 +481,27 @@
       return !isKingAttacked(state.board,'defender');
     } finally { state.board=savedBoard; state.hands=savedHands; }
   }
+  function selectableMove(move) {
+    if (!move || move.drop || !Array.isArray(move.from) || !Array.isArray(move.to)) return {ok:false,message:'着法无效。'};
+    const board=state.board, target=board[move.to[1]]?.[move.to[0]], piece=board[move.from[1]]?.[move.from[0]];
+    if (!piece || piece.owner!=='attacker') return {ok:false,message:'请选攻方棋子。'};
+    if (target?.owner==='attacker') return {ok:false,message:'不能走到己方棋子上。'};
+    if (target?.owner==='defender' && target.type==='K') return {ok:false,message:'玉不能直接取。'};
+    if (!pieceAttacksSquare(piece,move.from,move.to,board)) return {ok:false,message:'这个棋子不能走到这里。'};
+    return {ok:true};
+  }
   function cellClick(x,y) {
     if (!state.puzzle || state.solved || state.locked) return;
     if (state.selectedDrop) { attempt({drop:state.selectedDrop,to:[x,y],promote:false}); return; }
     const piece=state.board[y][x];
     if (!state.selectedFrom) { if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); } return; }
     if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); return; }
-    state.pendingMove={from:state.selectedFrom,to:[x,y]}; state.selectedFrom=null;
+    const pendingMove={from:state.selectedFrom,to:[x,y]};
+    const selectable=selectableMove(pendingMove);
+    if (!selectable.ok) {
+      state.selectedFrom=null; state.pendingMove=null; setFeedback(selectable.message,'bad'); renderBoard(); return;
+    }
+    state.pendingMove=pendingMove; state.selectedFrom=null;
     const option=promotionOption(state.pendingMove); if (option==='choice') showPromotion(); else attempt({...state.pendingMove,promote:option==='force'});
  }
   function showPromotion() { $('promotionModal').classList.add('show'); }
@@ -633,27 +710,38 @@
   }
   function reset() {
     if (!confirm('\u786E\u5B9A\u6E05\u9664\u6240\u6709\u672C\u5730\u8BAD\u7EC3\u8BB0\u5F55\u5417\uFF1F')) return;
-    const savedSettings={...settings}; progress={records:{},streak:0,lastSolvedDate:'',history:[],activity:[],settings:savedSettings}; saveProgress();
+    const savedSettings={...settings}; progress=makeProgress(); progress.settings=savedSettings; settings=progress.settings; saveProgress();
     if (state.puzzle) prepare(state.puzzle,false); renderAll(true);
   }
   function saveSetting() { progress.settings=settings; saveProgress(); }
 
-  document.querySelectorAll('#banks button').forEach(button => button.addEventListener('click', () => setBank(button.dataset.bank)));
-  document.querySelectorAll('#lengths button').forEach(button => button.addEventListener('click', () => setLength(button.dataset.length)));
-  document.querySelectorAll('#statPeriods button').forEach(button => button.addEventListener('click', () => { settings.statsPeriod=button.dataset.period; saveSetting(); renderPeriodStats(); }));
-  $('randomButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
-  $('markedButton').addEventListener('click', markedRandom); $('wrongButton').addEventListener('click', wrongRandom); $('dailyButton').addEventListener('click', daily);
-  $('onlineButton').addEventListener('click', () => window.open('https://tokuhirom.github.io/tanuki-tsume-shogi/','_blank','noopener'));
-  $('puzzleSelect').addEventListener('change', event => { const p=puzzles.find(item => key(item)===event.target.value); if (p) { state.markedOnly=false; state.wrongOnly=false; prepare(p,true); } });
-  $('nextButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
-  $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
-  $('noPromoteButton').addEventListener('click', () => tryPromotion(false)); $('promoteButton').addEventListener('click', () => tryPromotion(true));
-  $('engineToggle').addEventListener('change', event => { settings.engineEnabled=event.target.checked; saveSetting(); if (!settings.engineEnabled) setEngineStatus('off','\u5DF2\u5173\u95ED'); else { checkEngine(); } });
-  $('strictSteps').addEventListener('change', event => { settings.strictSteps=event.target.checked; saveSetting(); renderSettings(); });
-  document.addEventListener('keydown', event => {
-    if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
-    const k=event.key.toLowerCase(); if (k==='h') hint(); else if (k==='n') randomPuzzle(); else if (k==='m') toggleMark(); else if (k==='r') restart(); else if (k==='u' || (event.ctrlKey && k==='z')) undo();
-  });
+  function bindEvents() {
+    document.querySelectorAll('#banks button').forEach(button => button.addEventListener('click', () => setBank(button.dataset.bank)));
+    document.querySelectorAll('#lengths button').forEach(button => button.addEventListener('click', () => setLength(button.dataset.length)));
+    document.querySelectorAll('#statPeriods button').forEach(button => button.addEventListener('click', () => { settings.statsPeriod=button.dataset.period; saveSetting(); renderPeriodStats(); }));
+    $('randomButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
+    $('markedButton').addEventListener('click', markedRandom); $('wrongButton').addEventListener('click', wrongRandom); $('dailyButton').addEventListener('click', daily);
+    $('onlineButton').addEventListener('click', () => window.open('https://tokuhirom.github.io/tanuki-tsume-shogi/','_blank','noopener'));
+    $('puzzleSelect').addEventListener('change', event => { const p=puzzles.find(item => key(item)===event.target.value); if (p) { state.markedOnly=false; state.wrongOnly=false; prepare(p,true); } });
+    $('nextButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
+    $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
+    $('noPromoteButton').addEventListener('click', () => tryPromotion(false)); $('promoteButton').addEventListener('click', () => tryPromotion(true));
+    $('engineToggle').addEventListener('change', event => { settings.engineEnabled=event.target.checked; saveSetting(); if (!settings.engineEnabled) setEngineStatus('off','\u5DF2\u5173\u95ED'); else { checkEngine(); } });
+    $('strictSteps').addEventListener('change', event => { settings.strictSteps=event.target.checked; saveSetting(); renderSettings(); });
+    document.addEventListener('keydown', event => {
+      if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
+      const k=event.key.toLowerCase(); if (k==='h') hint(); else if (k==='n') randomPuzzle(); else if (k==='m') toggleMark(); else if (k==='r') restart(); else if (k==='u' || (event.ctrlKey && k==='z')) undo();
+    });
+    window.addEventListener('pagehide', flushProgress);
+  }
 
-  updateBankUI(); renderSettings(); populateList(); prepare(puzzles.find(p => Number(p.mateLength)===5 && bankMatches(p)) || puzzles[0], true); checkEngine();
+  async function bootstrap() {
+    progress = await loadProgress();
+    settings = progress.settings;
+    state.bank = ['curated','expanded','all'].includes(settings.bank) ? settings.bank : 'curated';
+    bindEvents();
+    updateBankUI(); renderSettings(); populateList(); prepare(puzzles.find(p => Number(p.mateLength)===5 && bankMatches(p)) || puzzles[0], true); checkEngine();
+  }
+
+  bootstrap();
 })();

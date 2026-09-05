@@ -1,4 +1,7 @@
-param([int]$Port = 19341)
+param(
+  [int]$Port = 19341,
+  [string]$DataFile = ''
+)
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -7,6 +10,13 @@ $EngineExe = Join-Path $EngineDir 'shtsume.exe'
 $ResponderDir = Join-Path $Root 'engines\yaneuraou'
 $ResponderExe = Join-Path $ResponderDir 'YaneuraOu-Suisho5-AVX2.exe'
 $Prefix = "http://127.0.0.1:$Port/"
+$LocalDataRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+if ([string]::IsNullOrWhiteSpace($DataFile)) {
+  if ([string]::IsNullOrWhiteSpace($LocalDataRoot)) { $LocalDataRoot = Join-Path $Root 'data' }
+  $DataFile = Join-Path (Join-Path $LocalDataRoot 'TsumeLauncher') 'training-data.json'
+}
+$DataFile = [IO.Path]::GetFullPath($DataFile)
+$DataDirectory = Split-Path -Parent $DataFile
 $script:ResponderProcess = $null
 $script:ResponderIn = $null
 $script:ResponderOut = $null
@@ -39,7 +49,57 @@ function Send-Text($Response, [string]$Text, [string]$ContentType = 'text/plain;
 }
 
 function Send-Json($Response, $Value, [int]$StatusCode = 200) {
-  Send-Text $Response (($Value | ConvertTo-Json -Compress -Depth 8)) 'application/json; charset=utf-8' $StatusCode
+  Send-Text $Response (($Value | ConvertTo-Json -Compress -Depth 12)) 'application/json; charset=utf-8' $StatusCode
+}
+
+function Read-RequestBody($Request) {
+  $reader = New-Object IO.StreamReader($Request.InputStream, [Text.Encoding]::UTF8)
+  try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+}
+
+function Ensure-DataDirectory {
+  if (-not (Test-Path -LiteralPath $DataDirectory -PathType Container)) {
+    [IO.Directory]::CreateDirectory($DataDirectory) | Out-Null
+  }
+}
+
+function Get-TrainingData {
+  if (-not (Test-Path -LiteralPath $DataFile -PathType Leaf)) {
+    return @{ ok = $true; storage = 'local-file'; exists = $false; data = $null }
+  }
+  try {
+    $text = [IO.File]::ReadAllText($DataFile, [Text.Encoding]::UTF8)
+    if ([string]::IsNullOrWhiteSpace($text)) {
+      return @{ ok = $true; storage = 'local-file'; exists = $true; data = $null }
+    }
+    $data = $text | ConvertFrom-Json
+    return @{ ok = $true; storage = 'local-file'; exists = $true; data = $data }
+  } catch {
+    return @{ ok = $false; storage = 'local-file'; reason = 'storage-read-failed' }
+  }
+}
+
+function Save-TrainingData($Value) {
+  if ($null -eq $Value) { return @{ ok = $false; reason = 'missing-data' } }
+  $temporary = $null
+  try {
+    $json = $Value | ConvertTo-Json -Compress -Depth 12
+    if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 4194304) {
+      return @{ ok = $false; reason = 'storage-too-large' }
+    }
+    Ensure-DataDirectory
+    $temporary = $DataFile + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    [IO.File]::WriteAllText($temporary, $json, [Text.Encoding]::UTF8)
+    Move-Item -LiteralPath $temporary -Destination $DataFile -Force
+    $temporary = $null
+    return @{ ok = $true; storage = 'local-file' }
+  } catch {
+    return @{ ok = $false; storage = 'local-file'; reason = 'storage-write-failed' }
+  } finally {
+    if ($temporary -and (Test-Path -LiteralPath $temporary)) {
+      try { Remove-Item -LiteralPath $temporary -Force } catch { }
+    }
+  }
 }
 
 function Convert-ToUsi($Move) {
@@ -338,6 +398,24 @@ function Handle-Request($Context) {
   $path = $request.Url.AbsolutePath
   try {
     if ($path -eq '/favicon.ico') { $response.StatusCode = 204; $response.Close(); return }
+    if ($path -eq '/api/storage' -and $request.HttpMethod -eq 'GET') {
+      $result = Get-TrainingData
+      $status = 500
+      if ($result.ok) { $status = 200 }
+      Send-Json $response $result $status
+      return
+    }
+    if ($path -eq '/api/storage' -and $request.HttpMethod -eq 'POST') {
+      $body = Read-RequestBody $request
+      if ([string]::IsNullOrWhiteSpace($body)) { Send-Json $response @{ ok = $false; reason = 'missing-data' } 400; return }
+      try { $payload = $body | ConvertFrom-Json } catch { Send-Json $response @{ ok = $false; reason = 'invalid-json' } 400; return }
+      $result = Save-TrainingData $payload
+      $status = 500
+      if ($result.ok) { $status = 200 }
+      elseif ($result.reason -eq 'missing-data' -or $result.reason -eq 'storage-too-large') { $status = 400 }
+      Send-Json $response $result $status
+      return
+    }
     if ($path -eq '/api/health') {
       $responderReady = Start-Responder
       Send-Json $response @{

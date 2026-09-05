@@ -24,7 +24,7 @@
 2. 在专用窗口中加载训练页面，并隐藏浏览器菜单、开发者工具和状态栏；
 3. 关闭窗口时结束本地服务及其引擎子进程。
 
-Start.bat 仍保留为常用入口：有 TsumeLauncher.exe 时优先打开本地窗口。若目标电脑没有 WebView2 运行时，使用包内的 Start-Browser.bat 回退到浏览器方式。
+Start.bat 作为唯一启动脚本，负责打开 TsumeLauncher.exe。本版本不再提供浏览器回退入口；如果缺少 WebView2 Runtime，程序应明确提示安装该运行时。
 
 ## 二、稳定数据接口
 
@@ -123,6 +123,7 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 当前实现：
 
 - GET /api/health
+- GET /api/storage、POST /api/storage：读写本机训练记录文件；
 - POST /api/engine/reply
 - POST /api/engine/solve
 - 服务端启动一个常驻 YaneuraOu worker，启动阶段完成 USI 握手和 NNUE 预热；
@@ -170,10 +171,12 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 | GET | /puzzle-data.js | 返回内置题库 |
 | GET | /launcher.js | 返回训练逻辑 |
 | GET | /api/health | 检查本地服务和引擎 |
+| GET | /api/storage | 读取本机训练记录 |
+| POST | /api/storage | 原子写入本机训练记录 |
 | POST | /api/engine/reply | 根据用户刚下出的王手，快速返回玉方应手 |
 | POST | /api/engine/solve | 可选的 shtsume 题源/诊断主变，不由训练页面调用 |
 
-不为剪贴板、KIF、普通棋局复盘或远程账号同步预留复杂入口。今后真要加入同步，应单独增加版本化的数据导入导出接口，不能让本地训练接口直接承担云同步。
+训练记录文件固定保存到 Windows 用户本地目录 `%LOCALAPPDATA%\TsumeLauncher\training-data.json`。文件内容沿用现有 progress、ProgressRecord 和题目主键结构，不把题库、引擎或远程账号数据写入其中。不为剪贴板、KIF、普通棋局复盘或远程账号同步预留复杂入口；今后真要加入同步，应单独增加版本化的数据导入导出接口，不能让本地训练接口直接承担云同步。
 
 ## 五、当前 UI 已完成和建议继续精细的地方
 
