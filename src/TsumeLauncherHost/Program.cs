@@ -32,6 +32,7 @@ internal sealed class LauncherForm : Form
         MinimumSize = new Size(900, 680);
         ClientSize = new Size(1280, 900);
         BackColor = Color.FromArgb(247, 244, 238);
+        SetApplicationIcon();
         Shown += OnShown;
         FormClosed += OnFormClosed;
 
@@ -43,6 +44,22 @@ internal sealed class LauncherForm : Form
             Font = new Font("Microsoft YaHei UI", 14F, FontStyle.Regular),
             ForeColor = Color.FromArgb(48, 59, 54)
         });
+    }
+
+    private void SetApplicationIcon()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath))
+            {
+                Icon = Icon.ExtractAssociatedIcon(processPath);
+            }
+        }
+        catch
+        {
+            // The embedded executable icon is still used by Windows if extraction is unavailable.
+        }
     }
 
     private async void OnShown(object? sender, EventArgs e)
