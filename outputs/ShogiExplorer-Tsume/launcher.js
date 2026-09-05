@@ -30,7 +30,8 @@
     noMarked: '\u6682\u65E0\u6807\u8BB0\u9898\u3002',
     noWrong: '\u6682\u65E0\u9519\u9898\u3002',
     overLimit: '\u624B\u6570\u8D85\u9650\uFF0C\u91CD\u65B0\u5F00\u59CB\u3002',
-    notMate: '\u5230\u8FBE\u89C4\u5B9A\u624B\u6570\uFF0C\u4F46\u7389\u65B9\u4ECD\u6709\u5408\u6CD5\u5E94\u624B\u3002'
+    notMate: '\u5230\u8FBE\u89C4\u5B9A\u624B\u6570\uFF0C\u4F46\u7389\u65B9\u4ECD\u6709\u5408\u6CD5\u5E94\u624B\u3002',
+    pawnDropMate: '\u6253\u6B65\u8BD8\u3002'
   };
 
   const $ = id => document.getElementById(id);
@@ -717,6 +718,7 @@
       applyMove(move,'attacker');
       if (isKingAttacked(state.board,'attacker')) return bad('攻方玉が王手です。');
       if (!isKingAttacked(state.board,'defender')) return bad('王手ではありません。');
+      if (move.drop === 'P' && isCheckmate()) return bad(TEXT.pawnDropMate);
       return {ok:true};
     } finally { state.board=savedBoard; state.hands=savedHands; }
   }
