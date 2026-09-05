@@ -71,7 +71,7 @@ internal sealed class LauncherForm : Form
         catch (Exception error)
         {
             MessageBox.Show(
-                "启动失败。\n\n" + error.Message + "\n\n可以改用同目录的 Start-Browser.bat。",
+                "启动失败。\n\n" + error.Message + "\n\n请确认已安装 Microsoft Edge WebView2 Runtime，并重新启动程序。",
                 "诘将棋练习",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);

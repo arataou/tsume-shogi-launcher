@@ -18,12 +18,11 @@
 推荐下载 Releases 中的 `ShogiExplorer-Tsume-Full.zip`，解压后进入 `ShogiExplorer-Tsume`：
 
 1. 双击 TsumeLauncher.exe；
-2. 如果没有 WebView2，使用 Start-Browser.bat；
-3. 也可以使用 Start.bat 启动本地训练页面。
+2. 也可以使用 Start.bat 启动独立窗口。
 
-训练记录保存在浏览器本地存储中。清理站点数据会清除记录，题库不会受到影响。
+训练记录、设置、统计和成就保存在电脑本地的 `%LOCALAPPDATA%\TsumeLauncher\training-data.json`。EXE 每次启动都会读取同一份文件，不受随机本地端口或浏览器站点数据影响；题库不会写入该文件。本版本不迁移旧浏览器站点记录。
 
-源码仓库不提交约 163 MB 的 `TsumeLauncher.exe`，该文件随 Windows Release 压缩包发布；这样可以避开 GitHub 普通文件的 100 MB 限制。只克隆源码时仍可使用 `Start-Browser.bat` 或 `Start.bat`，也可以按下方项目结构自行重新发布宿主程序。
+源码仓库不提交约 163 MB 的 `TsumeLauncher.exe`，该文件随 Windows Release 压缩包发布；这样可以避开 GitHub 普通文件的 100 MB 限制。只克隆源码时需要先按下方说明重新发布宿主程序，`Start.bat` 只负责启动已发布的独立窗口。
 
 ## 项目结构
 
@@ -49,6 +48,10 @@
 ## GitHub 发布建议
 
 源码、题库、说明文档和运行时文件可以跟随版本提交；最终 ZIP 作为 GitHub Release 附件。这样既方便跟进 HTML/JS/题库版本，也避免每次提交都重新携带大型发行包。
+
+## 开发流程
+
+分支、提交、多窗口协作、版本更新节奏和发布验收门槛见 [DEVELOPMENT.md](DEVELOPMENT.md)。当前维护批次继续使用 `v0.1.0`，不会因为单个修复或重新打包立即升版本。
 
 ## 第三方组件
 

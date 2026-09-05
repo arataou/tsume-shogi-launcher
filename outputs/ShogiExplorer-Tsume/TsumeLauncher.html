@@ -564,6 +564,9 @@
      .feedback.bad { background:linear-gradient(135deg,#fff8f3,#fff0ed); }
      .note { color:#887c70; }
      .setting-row select { border-color:#ddd2c3; color:#4d5d54; background:#fffdf8; }
+     .storage-row { grid-template-columns:1fr auto; }
+     .storage-status-ok { color:#28715c !important; }
+     .storage-status-off { color:#ad6b31 !important; }
       #enginePill.engine-status-ok { background:#e4f3ea; border-color:#c6dfd0; color:#28715c; }
       #enginePill.engine-status-thinking { background:#fff4d9; border-color:#ecd49d; color:#966822; }
       .stat-periods {
@@ -706,6 +709,7 @@
         </section>
         <section class="panel settings-panel">
           <h2>&#x8BBE;&#x7F6E;</h2>
+          <div class="setting-row storage-row"><span>&#x8BAD;&#x7EC3;&#x8BB0;&#x5F55;</span><small id="storageStatus">&#x672C;&#x673A;&#x6587;&#x4EF6;&#x8BFB;&#x53D6;&#x4E2D;</small></div>
           <label class="setting-row"><input id="engineToggle" type="checkbox" checked><span>&#x7389;&#x65B9;&#x5F15;&#x64CE;&#x5E94;&#x624B;</span><small id="engineStatus">&#x68C0;&#x6D4B;&#x4E2D;</small></label>
           <label class="setting-row"><input id="strictSteps" type="checkbox"><span>&#x624B;&#x6570;&#x9650;&#x5236;</span><small>&#x8D85;&#x9650;&#x91CD;&#x5F00;</small></label>
           <p class="note" id="limitHint">&#x5224;&#x5B9A;&#xFF1A;&#x738B;&#x624B;&#xFF0B;&#x624B;&#x6570;&#x3002;&#x5F15;&#x64CE;&#x53EA;&#x8D1F;&#x8D23;&#x7389;&#x65B9;&#x5E94;&#x624B;&#x3002;</p>
