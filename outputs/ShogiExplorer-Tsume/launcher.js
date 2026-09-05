@@ -877,18 +877,21 @@
 
   function updateUndoButton() {
     const button=$('undoButton'); if (!button) return;
-    button.disabled=!state.puzzle || state.answerShown || state.locked || state.solved || !state.undoStack.length;
-     button.title=button.disabled ? '\u6682\u65E0\u53EF\u6094\u7740\u6CD5' : '\u64A4\u56DE\u6700\u8FD1\u7EC4\u653B\u65B9\u7740\u624B\u4E0E\u7389\u65B9\u5E94\u624B';
+    button.disabled=!state.puzzle || state.answerShown || state.locked || !state.undoStack.length;
+    button.title=button.disabled ? '暂无可悔着法' : state.solved ? '悔回通关前最后组攻方着手与玉方应手' : '撤回最近组攻方着手与玉方应手';
   }
   function undo() {
-    if (!state.puzzle || state.answerShown || state.solved || state.locked || !state.undoStack.length) return;
+    if (!state.puzzle || state.answerShown || state.locked || !state.undoStack.length) return;
+    const wasSolved=state.solved || state.resultType === 'solved';
+    closeResultModal();
     const snapshot=state.undoStack.pop();
     state.board=snapshot.board; state.hands=snapshot.hands; state.solutionIndex=snapshot.solutionIndex;
     state.attemptedMoves=Number.isFinite(snapshot.attemptedMoves) ? snapshot.attemptedMoves : Math.max(0,Math.ceil((snapshot.solutionIndex || 0) / 2));
-    state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
+    state.solved=false; state.resultType=null; state.locked=false; state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
+    if (wasSolved) resumeTimer();
     $('problemStatus').textContent=record(state.puzzle).solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
     $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
-     setFeedback('\u5DF2\u6094\u68CB\u3002');
+    setFeedback(wasSolved ? '\u5DF2\u4ECE\u901A\u5173\u5C40\u9762\u6094\u68CB\uFF0C\u53EF\u7EE7\u7EED\u89E3\u9898\u3002' : '\u5DF2\u6094\u68CB\u3002');
     renderAll();
   }
   function finishReply(move, usedEngine, puzzle, token, detail='') {
