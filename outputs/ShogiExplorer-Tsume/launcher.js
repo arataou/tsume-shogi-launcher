@@ -145,35 +145,121 @@
     if (period === 'month') date.setDate(1);
     return date.getTime();
   }
+  const ACTIVITY_META = {
+    attempt:{label:'开始练习',icon:'↗',tone:'attempt'},
+    wrong:{label:'错误尝试',icon:'!',tone:'wrong'},
+    failed:{label:'超限重开',icon:'↻',tone:'failed'},
+    solved:{label:'完成题目',icon:'✓',tone:'solved'},
+    skipped:{label:'跳过题目',icon:'→',tone:'skipped'}
+  };
+  function activityEventsForPeriod(period, now=Date.now()) {
+    const events=activityEvents().filter(item => {
+      const at=Number(item.at || 0);
+      return at > 0 && at <= now;
+    });
+    if (period === 'history') return events;
+    const start=periodStart(period,now);
+    return events.filter(item => Number(item.at || 0) >= start);
+  }
+  function summarizeEvents(events) {
+    const solved=events.filter(item => item.type === 'solved').length;
+    return {
+      solved,
+      attempts:events.filter(item => item.type === 'attempt').length,
+      wrong:events.filter(item => item.type === 'wrong').length,
+      failed:events.filter(item => item.type === 'failed').length,
+      seconds:events.reduce((total,item) => total + (item.type === 'solved' ? Number(item.seconds || 0) : 0),0)
+    };
+  }
+  function summarizeRecords() {
+    const all=puzzles.map(p => ({p,r:record(p)}));
+    const solved=all.filter(item => item.r.solved).length;
+    return {
+      solved,
+      attempts:all.reduce((total,item) => total + Number(item.r.attempts || 0),0),
+      wrong:all.reduce((total,item) => total + Number(item.r.wrong || 0),0),
+      failed:all.reduce((total,item) => total + Number(item.r.failed || 0),0),
+      seconds:all.reduce((total,item) => total + (item.r.solved ? Number(item.r.seconds || 0) : 0),0)
+    };
+  }
   function periodName(period) {
-    return period === 'week' ? '\u672C\u5468' : period === 'month' ? '\u672C\u6708' : '\u4ECA\u65E5';
+    return period === 'week' ? '\u672C\u5468' : period === 'month' ? '\u672C\u6708' : period === 'history' ? '\u5386\u53F2' : '\u4ECA\u65E5';
+  }
+  function activityPuzzleLabel(item) {
+    const parts=String(item?.key || '').split(':');
+    if (parts.length >= 2 && parts[0] && parts[1]) return `${parts[0]}\u624B\u9898\u76EE #${parts.slice(1).join(':')}`;
+    return item?.length ? `${item.length}\u624B\u9898\u76EE` : '\u8BAD\u7EC3\u8BB0\u5F55';
+  }
+  function activityTimestamp(at, now=Date.now()) {
+    const date=new Date(Number(at));
+    if (Number.isNaN(date.getTime())) return '';
+    const pad=value => String(value).padStart(2,'0');
+    const datePart=date.getFullYear() === new Date(now).getFullYear()
+      ? `${date.getMonth()+1}/${date.getDate()}`
+      : `${date.getFullYear()}/${pad(date.getMonth()+1)}/${pad(date.getDate())}`;
+    return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+  function renderActivityHistory(events) {
+    const list=$('activityList'), empty=$('activityEmpty'), summary=$('activitySummary');
+    if (!list || !empty || !summary) return;
+    const valid=events.filter(item => Number(item.at || 0) > 0).sort((a,b) => Number(b.at || 0) - Number(a.at || 0));
+    const limit=8;
+    const visible=valid.slice(0,limit);
+    list.innerHTML='';
+    if (!visible.length) {
+      list.hidden=true;
+      empty.hidden=false;
+      summary.textContent='\u6682\u65E0\u8BB0\u5F55';
+      return;
+    }
+    list.hidden=false;
+    empty.hidden=true;
+    summary.textContent=valid.length > limit ? `\u6700\u8FD1 ${limit} \u6761 \u00B7 \u5171 ${valid.length} \u6761` : `\u5171 ${valid.length} \u6761`;
+    for (const item of visible) {
+      const meta=ACTIVITY_META[item.type] || {label:'训练活动',icon:'·',tone:'attempt'};
+      const row=document.createElement('li'); row.className=`activity-item activity-${meta.tone}`;
+      const icon=document.createElement('span'); icon.className='activity-icon'; icon.textContent=meta.icon; icon.setAttribute('aria-hidden','true');
+      const body=document.createElement('div'); body.className='activity-body';
+      const title=document.createElement('div'); title.className='activity-title'; title.textContent=meta.label;
+      const detail=document.createElement('span'); detail.className='activity-detail';
+      detail.textContent=activityPuzzleLabel(item) + (item.type === 'solved' && Number(item.seconds || 0) > 0 ? ` \u00B7 \u7528\u65F6 ${formatDuration(item.seconds)}` : '');
+      body.append(title,detail);
+      const time=document.createElement('time'); time.className='activity-time'; time.textContent=activityTimestamp(item.at); time.dateTime=new Date(Number(item.at)).toISOString();
+      row.append(icon,body,time); list.appendChild(row);
+    }
   }
   function renderPeriodStats() {
-    const period = ['day','week','month'].includes(settings.statsPeriod) ? settings.statsPeriod : 'day';
-    document.querySelectorAll('#statPeriods button').forEach(button => button.classList.toggle('active', button.dataset.period === period));
-    const start = periodStart(period);
-    const events = activityEvents().filter(item => Number(item.at || 0) >= start && Number(item.at || 0) <= Date.now());
-    const solved = events.filter(item => item.type === 'solved').length;
-    const attempts = events.filter(item => item.type === 'attempt').length;
-    const wrong = events.filter(item => item.type === 'wrong').length;
-    const failed = events.filter(item => item.type === 'failed').length;
-    const seconds = events.reduce((total, item) => total + (item.type === 'solved' ? Number(item.seconds || 0) : 0), 0);
-    const date = new Date(start);
-    let range = dateKey(date);
-    if (period === 'week') {
-      const end = new Date(start);
-      end.setDate(end.getDate() + 6);
-      range += ' — ' + dateKey(end);
-    } else if (period === 'month') {
-      range = String(date.getFullYear()) + '-' + String(date.getMonth() + 1).padStart(2,'0');
+    const period=['day','week','month','history'].includes(settings.statsPeriod) ? settings.statsPeriod : 'day';
+    document.querySelectorAll('#statPeriods button').forEach(button => {
+      const active=button.dataset.period === period;
+      button.classList.toggle('active',active);
+      button.setAttribute('aria-selected',String(active));
+    });
+    const now=Date.now();
+    const events=activityEventsForPeriod(period,now);
+    const summary=period === 'history' ? summarizeRecords() : summarizeEvents(events);
+    let range;
+    if (period === 'history') {
+      range='\u5168\u90E8\u8BAD\u7EC3\u8BB0\u5F55';
+    } else {
+      const start=periodStart(period,now);
+      const date=new Date(start);
+      range=dateKey(date);
+      if (period === 'week') {
+        const end=new Date(start); end.setDate(end.getDate()+6);
+        range += ' — ' + dateKey(end);
+      } else if (period === 'month') {
+        range=String(date.getFullYear()) + '-' + String(date.getMonth()+1).padStart(2,'0');
+      }
     }
-    $('periodCaption').textContent = periodName(period) + ' · ' + range;
-    $('periodSolved').textContent = solved;
-    $('periodAttempts').textContent = attempts;
-    $('periodWrong').textContent = wrong;
-    $('periodFailed').textContent = failed;
-    $('periodRate').textContent = attempts ? Math.round(solved / attempts * 100) + '%' : '—';
-    $('periodAverage').textContent = solved ? Math.round(seconds / solved) + 's' : '—';
+    $('periodCaption').textContent=periodName(period) + ' · ' + range;
+    $('periodSolved').textContent=summary.solved;
+    $('periodAttempts').textContent=summary.attempts;
+    $('periodWrong').textContent=summary.wrong;
+    $('periodFailed').textContent=summary.failed;
+    $('periodRate').textContent=summary.attempts ? Math.round(summary.solved / summary.attempts * 100) + '%' : '—';
+    $('periodAverage').textContent=summary.solved ? Math.round(summary.seconds / summary.solved) + 's' : '—';
+    renderActivityHistory(events);
   }
 
   let engineAvailable = false;
@@ -988,6 +1074,7 @@
     $('onlineButton').addEventListener('click', () => window.open('https://tokuhirom.github.io/tanuki-tsume-shogi/','_blank','noopener'));
     $('puzzleSelect').addEventListener('change', event => { const p=puzzles.find(item => key(item)===event.target.value); if (p) { state.markedOnly=false; state.wrongOnly=false; prepare(p,true); } });
     $('previousButton').addEventListener('click', () => navigatePuzzle(-1)); $('nextButton').addEventListener('click', () => navigatePuzzle(1));
+    $('nextResultButton').addEventListener('click', () => { closeResultModal(); navigatePuzzle(1); });
     $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('answerPreviousButton').addEventListener('click', () => stepAnswer(-1)); $('answerNextButton').addEventListener('click', () => stepAnswer(1)); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
     $('noPromoteButton').addEventListener('click', () => tryPromotion(false)); $('promoteButton').addEventListener('click', () => tryPromotion(true));
     $('engineToggle').addEventListener('change', event => { settings.engineEnabled=event.target.checked; saveSetting(); if (!settings.engineEnabled) setEngineStatus('off','\u5DF2\u5173\u95ED'); else { checkEngine(); } });

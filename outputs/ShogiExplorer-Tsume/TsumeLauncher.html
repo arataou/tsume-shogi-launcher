@@ -1001,9 +1001,380 @@
         }
       }
       @media (max-width:600px) {
-        .board-layout .board-card { padding:10px 10px 17px; }
-        .hand-rail .hand-card { padding:9px 10px; }
-        .hand-rail .hand-piece { width:40px; height:40px; min-width:40px; flex-basis:40px; font-size:19px; }
+         .board-layout .board-card { padding:10px 10px 17px; }
+         .hand-rail .hand-card { padding:9px 10px; }
+         .hand-rail .hand-piece { width:40px; height:40px; min-width:40px; flex-basis:40px; font-size:19px; }
+      }
+
+      /* 统计面板：把累计概览、周期表现和活动记录整理成一组清晰的视觉层级。 */
+      .stats-panel {
+        padding:20px;
+        border-color:#dbcfbd;
+        background:
+          radial-gradient(circle at 100% 0,rgba(255,246,222,.62),transparent 33%),
+          linear-gradient(145deg,rgba(255,254,250,.97),rgba(248,243,234,.94));
+      }
+      .stats-heading,
+      .period-heading,
+      .activity-heading {
+        display:flex;
+        align-items:flex-start;
+        justify-content:space-between;
+        gap:12px;
+      }
+      .stats-heading h2 {
+        margin:3px 0 0;
+        color:#2e3e38;
+        font-size:18px;
+        letter-spacing:.04em;
+      }
+      .stats-eyebrow {
+        display:block;
+        color:#a28c72;
+        font-size:9px;
+        font-weight:800;
+        letter-spacing:.16em;
+        line-height:1.2;
+      }
+      .stats-badge {
+        display:inline-flex;
+        align-items:center;
+        min-height:25px;
+        padding:4px 8px;
+        border:1px solid #e2d2b6;
+        border-radius:999px;
+        color:#8b765d;
+        background:rgba(255,251,239,.78);
+        font-size:10px;
+        font-weight:700;
+        white-space:nowrap;
+      }
+      .stats-overview {
+        gap:8px;
+        margin-top:17px;
+      }
+      .stats-panel .metric {
+        --stat-tone:#3d7864;
+        position:relative;
+        min-height:92px;
+        overflow:hidden;
+        padding:12px 12px 10px;
+        border-color:#e5dccc;
+        border-radius:13px;
+        background:rgba(255,254,250,.78);
+        box-shadow:0 4px 10px rgba(89,68,43,.035);
+      }
+      .stats-panel .metric::before {
+        content:"";
+        position:absolute;
+        inset:0 0 auto;
+        height:3px;
+        background:var(--stat-tone);
+        opacity:.78;
+      }
+      .stats-panel .metric-solved { --stat-tone:#2d8064; }
+      .stats-panel .metric-attempts { --stat-tone:#477b91; }
+      .stats-panel .metric-marked { --stat-tone:#b18236; }
+      .stats-panel .metric-marked-solved { --stat-tone:#8b6a36; }
+      .stats-panel .metric-wrong { --stat-tone:#ad6356; }
+      .stats-panel .metric-failed { --stat-tone:#976c4e; }
+      .stats-panel .metric-streak { --stat-tone:#c18838; }
+      .stats-panel .metric-best { --stat-tone:#5d7a72; }
+      .stats-panel .metric-label {
+        display:flex;
+        align-items:center;
+        gap:6px;
+        color:#82796e;
+        font-size:11px;
+        font-weight:700;
+        line-height:1.2;
+      }
+      .stats-panel .metric-label > span:last-child {
+        display:block;
+        color:#82796e;
+        font-size:11px;
+        white-space:nowrap;
+      }
+      .stats-panel .metric .metric-icon {
+        width:21px;
+        height:21px;
+        display:grid;
+        place-items:center;
+        flex:0 0 21px;
+        border:1px solid color-mix(in srgb,var(--stat-tone) 28%,#fff);
+        border-radius:7px;
+        color:var(--stat-tone);
+        background:color-mix(in srgb,var(--stat-tone) 10%,#fff);
+        font-size:12px;
+        font-weight:900;
+        line-height:1;
+      }
+      .stat-icon {
+        width:13px;
+        height:13px;
+        display:block;
+        overflow:visible;
+        fill:none;
+        stroke:currentColor;
+        stroke-width:2;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+      }
+      .period-metric-icon .stat-icon {
+        width:12px;
+        height:12px;
+        stroke-width:2.1;
+      }
+      .stats-panel .metric strong {
+        display:block;
+        margin-top:8px;
+        color:var(--stat-tone) !important;
+        font-size:23px;
+        font-variant-numeric:tabular-nums;
+        line-height:1;
+      }
+      .stats-panel .metric small {
+        display:block;
+        overflow:hidden;
+        margin-top:6px;
+        color:#aa9d8e;
+        font-size:9px;
+        line-height:1.2;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .period-section {
+        margin-top:19px;
+        padding-top:16px;
+        border-top:1px solid #e9dfd0;
+      }
+      .period-heading,
+      .activity-heading {
+        align-items:flex-end;
+      }
+      .period-heading strong,
+      .activity-heading strong {
+        display:block;
+        margin-top:3px;
+        color:#4b5c53;
+        font-size:13px;
+        letter-spacing:.03em;
+      }
+      .period-caption {
+        min-height:16px;
+        padding-bottom:1px;
+        color:#a28f7b;
+        font-size:10px;
+        font-weight:700;
+        letter-spacing:0;
+        text-align:right;
+        white-space:nowrap;
+      }
+      .stat-periods {
+        grid-template-columns:repeat(4,1fr);
+        gap:4px;
+        margin:12px 0 9px;
+        padding:4px;
+        border-color:#e5d9c8;
+        border-radius:12px;
+        background:#f2ece2;
+      }
+      .stat-periods button {
+        min-height:31px;
+        padding:5px 3px;
+        color:#958575;
+        font-size:11px;
+        font-weight:800;
+      }
+      .stat-periods button:hover {
+        color:#527265;
+        background:rgba(255,255,255,.72);
+      }
+      .stat-periods button.active {
+        color:#2f6f61;
+        background:#fffdf8;
+        box-shadow:0 2px 7px rgba(91,72,49,.12),inset 0 0 0 1px rgba(91,129,106,.08);
+      }
+      .stat-periods button:focus-visible {
+        outline:2px solid #76a994;
+        outline-offset:-2px;
+      }
+      .period-grid {
+        gap:7px;
+        margin-top:0;
+      }
+      .period-metric {
+        position:relative;
+        min-height:70px;
+        align-items:center;
+        padding:9px 5px 8px;
+        border-color:#e7ddd0;
+        border-radius:11px;
+        background:rgba(255,253,248,.72);
+        box-shadow:0 3px 8px rgba(89,68,43,.025);
+      }
+      .period-metric::after {
+        content:"";
+        position:absolute;
+        left:50%;
+        bottom:0;
+        width:25px;
+        height:2px;
+        border-radius:2px 2px 0 0;
+        background:#b9a282;
+        transform:translateX(-50%);
+        opacity:.65;
+      }
+      .period-metric-icon {
+        width:19px;
+        height:19px;
+        display:grid !important;
+        place-items:center;
+        margin:0 0 4px;
+        border-radius:6px;
+        color:#7e988a;
+        background:#edf3ed;
+        font-size:10px !important;
+        font-weight:900;
+        line-height:1 !important;
+      }
+      .period-metric strong {
+        color:#3e7564;
+        font-size:18px;
+        line-height:1;
+      }
+      .period-metric-label {
+        margin-top:4px !important;
+        color:#9a8d7e !important;
+        font-size:9px !important;
+        line-height:1.15 !important;
+      }
+      .period-solved .period-metric-icon { color:#2d8064; background:#e8f3ed; }
+      .period-attempts .period-metric-icon { color:#477b91; background:#eaf2f5; }
+      .period-wrong .period-metric-icon { color:#ad6356; background:#f8ece8; }
+      .period-failed .period-metric-icon { color:#976c4e; background:#f5eee7; }
+      .period-rate .period-metric-icon { color:#7a6b9b; background:#f0edf7; }
+      .period-average .period-metric-icon { color:#b18236; background:#faf2df; }
+      .activity-section {
+        margin-top:17px;
+        padding-top:15px;
+        border-top:1px solid #e9dfd0;
+      }
+      .activity-summary {
+        padding-bottom:1px;
+        color:#a28f7b;
+        font-size:10px;
+        font-weight:700;
+        white-space:nowrap;
+      }
+      .activity-list {
+        max-height:224px;
+        overflow-y:auto;
+        margin:9px -5px 0 0;
+        padding:0 5px 0 0;
+        list-style:none;
+        scrollbar-color:#d5c7b2 transparent;
+        scrollbar-width:thin;
+      }
+      .activity-item {
+        display:grid;
+        grid-template-columns:25px minmax(0,1fr) auto;
+        align-items:center;
+        gap:8px;
+        padding:8px 0;
+        border-bottom:1px solid #eee6da;
+      }
+      .activity-item:last-child { border-bottom:0; }
+      .activity-icon {
+        width:24px;
+        height:24px;
+        display:grid;
+        place-items:center;
+        border:1px solid #ded4c5;
+        border-radius:8px;
+        color:#837564;
+        background:#f7f1e7;
+        font-size:11px;
+        font-weight:900;
+      }
+      .activity-item.activity-solved .activity-icon { border-color:#b9d9c6; color:#2c7b5f; background:#eaf6ef; }
+      .activity-item.activity-wrong .activity-icon { border-color:#edc7bd; color:#ae5d51; background:#fff1ec; }
+      .activity-item.activity-failed .activity-icon { border-color:#e4ccb1; color:#9a6c43; background:#fff6e9; }
+      .activity-item.activity-skipped .activity-icon { border-color:#d9d5c8; color:#7c867d; background:#f1f3ee; }
+      .activity-body { min-width:0; }
+      .activity-title {
+        overflow:hidden;
+        color:#52635a;
+        font-size:11px;
+        font-weight:800;
+        line-height:1.25;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .activity-detail {
+        display:block;
+        overflow:hidden;
+        margin-top:2px;
+        color:#a19383;
+        font-size:10px;
+        line-height:1.25;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .activity-time {
+        align-self:start;
+        padding-top:2px;
+        color:#aa9b89;
+        font-size:9px;
+        font-variant-numeric:tabular-nums;
+        white-space:nowrap;
+      }
+      .activity-empty {
+        margin:11px 0 1px;
+        padding:12px 9px;
+        border:1px dashed #e1d5c3;
+        border-radius:10px;
+        color:#a49686;
+        background:rgba(255,253,248,.55);
+        font-size:10px;
+        text-align:center;
+      }
+      .reset-records { margin-top:15px !important; }
+      .result-card,
+      .result-card * { pointer-events:auto; }
+      .result-actions {
+        display:flex;
+        justify-content:center;
+        margin-top:16px;
+      }
+      .result-actions button {
+        min-width:132px;
+        min-height:39px;
+        padding:8px 16px;
+        pointer-events:auto;
+      }
+      @media (max-width:600px) {
+        .stats-panel { padding:15px; }
+        .stats-heading h2 { font-size:17px; }
+        .stats-overview { gap:7px; margin-top:15px; }
+        .stats-panel .metric { min-height:84px; padding:10px 9px 8px; }
+        .stats-panel .metric strong { margin-top:6px; font-size:21px; }
+        .stats-panel .metric small { margin-top:4px; font-size:8px; }
+        .stats-panel .metric-label > span:last-child { font-size:10px; }
+        .period-section { margin-top:16px; padding-top:14px; }
+        .period-heading strong, .activity-heading strong { font-size:12px; }
+        .period-caption { font-size:9px; }
+        .stat-periods { margin-top:10px; }
+        .stat-periods button { min-height:29px; font-size:10px; }
+        .period-grid { gap:5px; }
+        .period-metric { min-height:64px; padding:7px 3px 7px; }
+        .period-metric-icon { display:none !important; }
+        .period-metric strong { font-size:16px; }
+        .activity-section { margin-top:15px; padding-top:13px; }
+        .activity-item { grid-template-columns:24px minmax(0,1fr) auto; gap:7px; padding:7px 0; }
+        .activity-icon { width:23px; height:23px; }
+        .result-actions { margin-top:13px; }
+        .result-actions button { width:100%; min-height:38px; }
       }
     </style>
 </head>
@@ -1036,34 +1407,50 @@
           <h3>&#x9898;&#x76EE;&#x5217;&#x8868;</h3>
           <select id="puzzleSelect" size="9"></select>
         </section>
-        <section class="panel">
-          <h2>&#x8BAD;&#x7EC3;&#x7EDF;&#x8BA1;</h2>
-          <div class="metric-grid">
-            <div class="metric"><span>&#x5B8C;&#x6210;</span><strong id="solvedCount">0</strong></div>
-            <div class="metric"><span>&#x7EC3;&#x4E60;&#x6B21;&#x6570;</span><strong id="attemptCount">0</strong></div>
-            <div class="metric"><span>&#x6807;&#x8BB0;</span><strong id="markedCount">0</strong></div>
-            <div class="metric"><span>&#x6807;&#x8BB0;&#x5B8C;&#x6210;</span><strong id="markedSolvedCount">0</strong></div>
-            <div class="metric"><span>&#x9519;&#x9898;</span><strong id="wrongCount">0</strong></div>
-            <div class="metric"><span>&#x91CD;&#x5F00;</span><strong id="failedCount">0</strong></div>
-            <div class="metric"><span>&#x8FDE;&#x80DC;</span><strong id="streakCount">0</strong></div>
-            <div class="metric"><span>&#x6700;&#x5FEB;</span><strong id="bestTime">—</strong></div>
+        <section class="panel stats-panel" aria-labelledby="statsTitle">
+          <div class="stats-heading">
+            <div>
+              <span class="stats-eyebrow">TRAINING INSIGHTS</span>
+              <h2 id="statsTitle">&#x8BAD;&#x7EC3;&#x7EDF;&#x8BA1;</h2>
+            </div>
+            <span class="stats-badge">&#x672C;&#x673A;&#x6570;&#x636E;</span>
           </div>
-          <div class="stat-periods" id="statPeriods">
-            <button data-period="day" class="active">&#x4ECA;&#x65E5;</button><button data-period="week">&#x672C;&#x5468;</button><button data-period="month">&#x672C;&#x6708;</button>
+          <div class="metric-grid stats-overview">
+            <div class="metric metric-solved"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></svg></span><span>&#x5B8C;&#x6210;</span></div><strong id="solvedCount">0</strong><small>&#x5DF2;&#x5B8C;&#x6210;&#x9898;&#x76EE;</small></div>
+            <div class="metric metric-attempts"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M5 17 19 5"/><path d="M10 5h9v9"/></svg></span><span>&#x7EC3;&#x4E60;&#x6B21;&#x6570;</span></div><strong id="attemptCount">0</strong><small>&#x5F00;&#x59CB;&#x8BAD;&#x7EC3;&#x6B21;&#x6570;</small></div>
+            <div class="metric metric-marked"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="m12 3.8 2.5 5.1 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8Z"/></svg></span><span>&#x6807;&#x8BB0;</span></div><strong id="markedCount">0</strong><small>&#x5F85;&#x590D;&#x4E60;&#x9898;&#x76EE;</small></div>
+            <div class="metric metric-marked-solved"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M7 4.5h10v15l-5-3-5 3Z"/><path d="m9 10.5 2 2 4-4"/></svg></span><span>&#x6807;&#x8BB0;&#x5B8C;&#x6210;</span></div><strong id="markedSolvedCount">0</strong><small>&#x5DF2;&#x6536;&#x56DE;&#x6807;&#x8BB0;&#x9898;</small></div>
+            <div class="metric metric-wrong"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="m12 4 9 16H3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span><span>&#x9519;&#x9898;</span></div><strong id="wrongCount">0</strong><small>&#x6709;&#x9519;&#x8BEF;&#x8BB0;&#x5F55;</small></div>
+            <div class="metric metric-failed"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-4L3 10"/><path d="M3 5v5h5"/><path d="M4 13a8 8 0 0 0 14.9 4L21 14"/><path d="M21 19v-5h-5"/></svg></span><span>&#x91CD;&#x5F00;</span></div><strong id="failedCount">0</strong><small>&#x8D85;&#x9650;&#x91CD;&#x5F00;&#x6B21;&#x6570;</small></div>
+            <div class="metric metric-streak"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M12 21a6 6 0 0 0 6-6c0-4-3-5-4-9-2 1-3 3-3 5-1-1-3-3-3-6-3 2-4 5-4 8a6 6 0 0 0 4 8Z"/></svg></span><span>&#x8FDE;&#x7EED;&#x5929;&#x6570;</span></div><strong id="streakCount">0</strong><small>&#x8FDE;&#x7EED;&#x8BAD;&#x7EC3;&#x5929;&#x6570;</small></div>
+            <div class="metric metric-best"><div class="metric-label"><span class="metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0Z"/><path d="M12 12v5"/><path d="M8 21h8"/><path d="M5 5h3v3a3 3 0 0 1-3-3Z"/><path d="M19 5h-3v3a3 3 0 0 0 3-3Z"/></svg></span><span>&#x6700;&#x5FEB;</span></div><strong id="bestTime">—</strong><small>&#x6700;&#x4F73;&#x5B8C;&#x6210;&#x7528;&#x65F6;</small></div>
           </div>
-          <div class="period-caption" id="periodCaption"></div>
-          <div class="period-grid">
-            <div class="period-metric"><strong id="periodSolved">0</strong><span>&#x5B8C;&#x6210;</span></div>
-            <div class="period-metric"><strong id="periodAttempts">0</strong><span>&#x7EC3;&#x4E60;</span></div>
-            <div class="period-metric"><strong id="periodWrong">0</strong><span>&#x9519;&#x8BEF;</span></div>
-            <div class="period-metric"><strong id="periodFailed">0</strong><span>&#x91CD;&#x5F00;</span></div>
-            <div class="period-metric"><strong id="periodRate">—</strong><span>&#x5B8C;&#x6210;&#x7387;</span></div>
-            <div class="period-metric"><strong id="periodAverage">—</strong><span>&#x5E73;&#x5747;&#x7528;&#x65F6;</span></div>
+          <div class="period-section">
+            <div class="period-heading">
+              <div><span class="stats-eyebrow">ACTIVITY RHYTHM</span><strong>&#x8BAD;&#x7EC3;&#x8282;&#x594F;</strong></div>
+              <span class="period-caption" id="periodCaption"></span>
+            </div>
+            <div class="stat-periods" id="statPeriods" role="tablist" aria-label="&#x7EDF;&#x8BA1;&#x5468;&#x671F;">
+              <button type="button" role="tab" data-period="day" class="active" aria-selected="true">&#x4ECA;&#x65E5;</button><button type="button" role="tab" data-period="week" aria-selected="false">&#x672C;&#x5468;</button><button type="button" role="tab" data-period="month" aria-selected="false">&#x672C;&#x6708;</button><button type="button" role="tab" data-period="history" aria-selected="false">&#x5386;&#x53F2;</button>
+            </div>
+            <div class="period-grid" role="tabpanel">
+              <div class="period-metric period-solved"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></svg></span><strong id="periodSolved">0</strong><span class="period-metric-label">&#x5B8C;&#x6210;</span></div>
+              <div class="period-metric period-attempts"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M5 17 19 5"/><path d="M10 5h9v9"/></svg></span><strong id="periodAttempts">0</strong><span class="period-metric-label">&#x7EC3;&#x4E60;</span></div>
+              <div class="period-metric period-wrong"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="m12 4 9 16H3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span><strong id="periodWrong">0</strong><span class="period-metric-label">&#x9519;&#x8BEF;</span></div>
+              <div class="period-metric period-failed"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-4L3 10"/><path d="M3 5v5h5"/><path d="M4 13a8 8 0 0 0 14.9 4L21 14"/><path d="M21 19v-5h-5"/></svg></span><strong id="periodFailed">0</strong><span class="period-metric-label">&#x91CD;&#x5F00;</span></div>
+              <div class="period-metric period-rate"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><path d="M4 15a8 8 0 1 1 16 0"/><path d="m12 12 3-3"/><path d="M7 19h10"/></svg></span><strong id="periodRate">—</strong><span class="period-metric-label">&#x5B8C;&#x6210;&#x7387;</span></div>
+              <div class="period-metric period-average"><span class="period-metric-icon" aria-hidden="true"><svg class="stat-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></span><strong id="periodAverage">—</strong><span class="period-metric-label">&#x5E73;&#x5747;&#x7528;&#x65F6;</span></div>
+            </div>
+          </div>
+          <div class="activity-section" aria-live="polite">
+            <div class="activity-heading"><div><span class="stats-eyebrow">RECENT ACTIVITY</span><strong>&#x6700;&#x8FD1;&#x8BAD;&#x7EC3;</strong></div><span id="activitySummary" class="activity-summary">—</span></div>
+            <ol id="activityList" class="activity-list"></ol>
+            <p id="activityEmpty" class="activity-empty" hidden>&#x6240;&#x9009;&#x5468;&#x671F;&#x8FD8;&#x6CA1;&#x6709;&#x8BAD;&#x7EC3;&#x8BB0;&#x5F55;&#x3002;</p>
           </div>
           <div class="progress-row"><div class="progress-label"><span>&#x5F53;&#x524D;&#x624B;&#x6570;&#x5B8C;&#x6210;&#x7387;</span><span id="lengthProgressText">0 / 0</span></div><progress id="lengthProgress" max="1" value="0"></progress></div>
           <h3>&#x6210;&#x5C31;</h3>
           <div id="achievements" class="achievements"></div>
-          <button id="resetButton" class="danger wide" style="margin-top:13px">&#x6E05;&#x9664;&#x8BAD;&#x7EC3;&#x8BB0;&#x5F55;</button>
+          <button id="resetButton" class="danger wide reset-records">&#x6E05;&#x9664;&#x8BAD;&#x7EC3;&#x8BB0;&#x5F55;</button>
         </section>
         <section class="panel settings-panel">
           <h2>&#x8BBE;&#x7F6E;</h2>
@@ -1082,7 +1469,11 @@
           <aside class="hand-rail hand-rail-attacker" aria-label="&#x653B;&#x65B9;&#x6301;&#x99D2;">
             <div class="hand-card"><div class="hand-title">&#x653B;&#x65B9;&#x6301;&#x99D2;</div><div id="attackerHand" class="hand-pieces"></div></div>
           </aside>
-        <div class="board-card"><div id="board" aria-label="tsume board"></div><div id="promotionModal" class="modal" role="dialog" aria-modal="true" aria-label="&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;"><div class="modal-card"><h3>&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;</h3><div class="modal-actions"><button id="promoteButton" class="primary">&#x6210;&#x308B;</button><button id="noPromoteButton">&#x4E0D;&#x6210;</button></div></div></div><div id="resultModal" class="modal" role="status" aria-live="polite" aria-atomic="true"><div id="resultCard" class="modal-card result-card success"><div class="result-hero"><div id="resultIcon" class="result-icon">&#x2713;</div><div id="resultKicker" class="result-kicker">&#x8BAD;&#x7EC3;&#x5B8C;&#x6210;</div><h3 id="resultTitle">&#x901A;&#x5173;&#xFF01;</h3><p id="resultMessage" class="result-message"></p><div id="resultDetail" class="result-detail"></div></div></div></div></div>
+         <div class="board-card">
+           <div id="board" aria-label="tsume board"></div>
+           <div id="promotionModal" class="modal" role="dialog" aria-modal="true" aria-label="&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;"><div class="modal-card"><h3>&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;</h3><div class="modal-actions"><button id="promoteButton" class="primary">&#x6210;&#x308B;</button><button id="noPromoteButton">&#x4E0D;&#x6210;</button></div></div></div>
+           <div id="resultModal" class="modal" role="status" aria-live="polite" aria-atomic="true"><div id="resultCard" class="modal-card result-card success"><div class="result-hero"><div id="resultIcon" class="result-icon">&#x2713;</div><div id="resultKicker" class="result-kicker">&#x8BAD;&#x7EC3;&#x5B8C;&#x6210;</div><h3 id="resultTitle">&#x901A;&#x5173;&#xFF01;</h3><p id="resultMessage" class="result-message"></p><div id="resultDetail" class="result-detail"></div><div class="result-actions"><button id="nextResultButton" class="primary">&#x4E0B;&#x4E00;&#x9898;</button></div></div></div></div>
+         </div>
           <aside class="hand-rail hand-rail-defender" aria-label="&#x7389;&#x65B9;&#x6301;&#x99D2;">
             <div class="hand-card"><div class="hand-title">&#x7389;&#x65B9;&#x6301;&#x99D2;</div><div id="defenderHand" class="hand-pieces"></div></div>
           </aside>
