@@ -1,3 +1,6 @@
+# Git worktree 容器：其中的目录由 Git worktree 管理，不参与主工作区版本控制
+.worktrees/
+
 # 本地渲染检查和临时文件
 visual-check.png
 outputs/ShogiExplorer-Tsume/visual-check.png
