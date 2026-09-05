@@ -306,6 +306,7 @@ function Get-ResponderMove([string]$Sfen) {
   $safe = $Sfen.Trim()
   if ($safe.Length -gt 500 -or $safe -match '["\r\n]') { return @{ ok = $false; reason = 'invalid-sfen' } }
   $started = [Diagnostics.Stopwatch]::StartNew()
+  $terminalReplySeen = $false
   try {
     foreach ($candidate in @(Get-ResponderSfenCandidates $safe)) {
       if (-not (Start-Responder)) { return @{ ok = $false; reason = 'responder-start-failed' } }
@@ -322,11 +323,15 @@ function Get-ResponderMove([string]$Sfen) {
             if ($move -notmatch '^(none|resign)$') {
               return @{ ok = $true; reply = $move; engine = 'yaneuraou'; engineMs = $started.ElapsedMilliseconds }
             }
+            $terminalReplySeen = $true
             break
           }
         }
       } catch { }
       Stop-Responder
+    }
+    if ($terminalReplySeen) {
+      return @{ ok = $true; mate = $true; reply = $null; engine = 'yaneuraou'; engineMs = $started.ElapsedMilliseconds }
     }
     return @{ ok = $false; reason = 'no-responder-move'; engineMs = $started.ElapsedMilliseconds }
   } finally {

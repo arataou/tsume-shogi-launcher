@@ -30,7 +30,8 @@
     engineOff: '\u7389\u65B9\u5E94\u624B\u5F15\u64CE\u4E0D\u53EF\u7528\u3002',
     noMarked: '\u6682\u65E0\u6807\u8BB0\u9898\u3002',
     noWrong: '\u6682\u65E0\u9519\u9898\u3002',
-    overLimit: '\u624B\u6570\u8D85\u9650\uFF0C\u91CD\u65B0\u5F00\u59CB\u3002'
+    overLimit: '\u624B\u6570\u8D85\u9650\uFF0C\u91CD\u65B0\u5F00\u59CB\u3002',
+    notMate: '\u5230\u8FBE\u89C4\u5B9A\u624B\u6570\uFF0C\u4F46\u7389\u65B9\u4ECD\u6709\u5408\u6CD5\u5E94\u624B\u3002'
   };
 
   const $ = id => document.getElementById(id);
@@ -419,7 +420,7 @@
     $('engineToggle').checked = settings.engineEnabled !== false;
     $('strictSteps').checked = Boolean(settings.strictSteps);
     $('limitHint').textContent = settings.strictSteps
-      ? '\u624B\u6570\u9650\u5236\uFF1A\u6700\u591A ' + attackLimit(state.puzzle || { solution:[], mateLength:state.length }) + ' \u624B\uFF0C\u8D85\u9650\u91CD\u5F00\u3002'
+      ? '\u624B\u6570\u9650\u5236\uFF1A\u6700\u591A ' + attackLimit(state.puzzle || { solution:[], mateLength:state.length }) + ' \u6B21\u6709\u6548\u7740\u6CD5\uFF0C\u9519\u8BEF\u5C1D\u8BD5\u548C\u6094\u68CB\u4E0D\u8BA1\uFF0C\u8D85\u9650\u91CD\u5F00\u3002'
       : '\u5224\u5B9A\uFF1A\u738B\u624B\uFF0B\u624B\u6570\u3002\u5F15\u64CE\u4EC5\u8D1F\u8D23\u7389\u65B9\u5E94\u624B\u3002';
   }
 
@@ -745,6 +746,28 @@
       return !isKingAttacked(state.board,'defender');
     } finally { state.board=savedBoard; state.hands=savedHands; }
   }
+  function hasLegalDefenderReply() {
+    const board=state.board, hands=state.hands;
+    for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) {
+      const piece=board[y]?.[x];
+      if (piece?.owner !== 'defender') continue;
+      for (let targetY=1; targetY<=9; targetY++) for (let targetX=1; targetX<=9; targetX++) {
+        const move={from:[x,y],to:[targetX,targetY],promote:false};
+        if (isValidDefenderReply(move)) return true;
+        if (!piece.promoted && PROMOTABLE.includes(piece.type) && (promotionZone('defender',y) || promotionZone('defender',targetY)) && isValidDefenderReply({...move,promote:true})) return true;
+      }
+    }
+    for (const type of TYPES) {
+      if (Number(hands.defender?.[type] || 0) <= 0) continue;
+      for (let y=1; y<=9; y++) for (let x=1; x<=9; x++) {
+        if (isValidDefenderReply({drop:type,to:[x,y],promote:false})) return true;
+      }
+    }
+    return false;
+  }
+  function isCheckmate() {
+    return isKingAttacked(state.board,'defender') && !hasLegalDefenderReply();
+  }
   function selectableMove(move) {
     if (!move || move.drop || !Array.isArray(move.from) || !Array.isArray(move.to)) return {ok:false,message:'着法无效。'};
     const board=state.board, target=board[move.to[1]]?.[move.to[0]], piece=board[move.from[1]]?.[move.from[0]];
@@ -861,6 +884,7 @@
     if (!state.puzzle || state.answerShown || state.solved || state.locked || !state.undoStack.length) return;
     const snapshot=state.undoStack.pop();
     state.board=snapshot.board; state.hands=snapshot.hands; state.solutionIndex=snapshot.solutionIndex;
+    state.attemptedMoves=Number.isFinite(snapshot.attemptedMoves) ? snapshot.attemptedMoves : Math.max(0,Math.ceil((snapshot.solutionIndex || 0) / 2));
     state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
     $('problemStatus').textContent=record(state.puzzle).solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
     $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
@@ -888,7 +912,13 @@
     }
     state.locked=true; state.enginePending=false; $('turnHint').textContent='\u7389\u65B9\u5E94\u624B'; renderAll();
     setTimeout(() => finishReply(move,false,puzzle,token,detail), 60);
- }
+  }
+
+  function finishAtLimit(puzzle, token, engineMate=null) {
+    if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
+    if (isCheckmate() && engineMate !== false) { complete(); return; }
+    failPuzzle(TEXT.notMate);
+  }
 
   function requestDefenderReply(sfen) {
     const controller=new AbortController();
@@ -906,10 +936,11 @@
 
   async function engineReply(sfen, fallbackReplyMove, puzzle, token) {
     if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
-    if (state.solutionIndex>=Number(puzzle.mateLength)) { complete(); return; }
+    const atLimit=state.solutionIndex>=Number(puzzle.mateLength);
     const useFallback = detail => {
       if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
       const rec=record(puzzle); rec.engineFallbacks++; rec.lastPlayed=Date.now(); saveProgress();
+      if (atLimit) { finishAtLimit(puzzle,token); return; }
       if (!fallbackReplyMove) {
         state.locked=true; state.enginePending=false; $('turnHint').textContent='\u9700\u8981\u7389\u65B9\u5E94\u624B';
         setEngineStatus('off','\u9898\u5E93\u5E94\u624B'); setFeedback((detail || TEXT.engineOff) + ' \u4F7F\u7528\u9898\u5E93\u5E94\u624B\uFF0C\u8BF7\u91CD\u5F00\u3002','bad'); renderAll();
@@ -927,6 +958,12 @@
     if (!result.ok) { engineAvailable=false; engineChecked=true; setEngineStatus('off','\u4F7F\u7528\u9898\u5E93\u5E94\u624B'); useFallback(TEXT.engineOff); return; }
     const data=result.data; engineAvailable=true; engineChecked=true; setEngineStatus('ok','\u7389\u65B9\u5E94\u624B\u5C31\u7EEA');
     const reply=parseUsi(data.reply);
+    if (atLimit) {
+      const engineMate=data.mate === true ? true : reply && isValidDefenderReply(reply) ? false : null;
+      finishAtLimit(puzzle,token,engineMate);
+      return;
+    }
+    if (data.mate === true) { useFallback(TEXT.engineOff); return; }
     if (!reply || !isValidDefenderReply(reply)) { useFallback(TEXT.engineOff); return; }
     finishReply(reply,true,puzzle,token,data.engineMs ? ('\u7528\u65F6 ' + data.engineMs + 'ms') : '');
   }
@@ -944,17 +981,19 @@
 
   function attempt(move) {
     if (!state.puzzle || state.answerShown || state.solved || state.locked) return;
-    const puzzle=state.puzzle; state.attemptedMoves++;
-    if (settings.strictSteps && state.attemptedMoves > attackLimit(puzzle)) { failPuzzle(TEXT.overLimit); return; }
+    if ((state.solutionIndex || 0) % 2 !== 0) return;
+    const puzzle=state.puzzle;
     state.selectedFrom=null; state.selectedDrop=null;
     const rule=validateAttack(move);
     if (!rule.ok) {
       const rec=record(puzzle); rec.wrong++; rec.lastPlayed=Date.now(); logActivity('wrong', puzzle); saveProgress();
-      const lastChance=settings.strictSteps && state.attemptedMoves===attackLimit(puzzle) ? ' <strong>\u6700\u540E\u4E00\u6B21\u3002</strong>' : '';
-      setFeedback(rule.message + lastChance,'bad'); flashWrong(move); renderAll(); return;
+      setFeedback(rule.message,'bad'); flashWrong(move); renderAll(); return;
     }
-    const snapshot={board:clone(state.board), hands:clone(state.hands), solutionIndex:state.solutionIndex, hintShown:state.hintShown};
+    const nextAttempt=state.attemptedMoves + 1;
+    if (settings.strictSteps && nextAttempt > attackLimit(puzzle)) { failPuzzle(TEXT.overLimit); return; }
+    const snapshot={board:clone(state.board), hands:clone(state.hands), solutionIndex:state.solutionIndex, hintShown:state.hintShown, attemptedMoves:state.attemptedMoves};
     state.undoStack.push(snapshot);
+    state.attemptedMoves=nextAttempt;
     const moveText=formatKifuMove(move,'attacker',{board:snapshot.board});
     applyMove(move,'attacker'); state.solutionIndex++; state.hintShown=false; setFeedback(TEXT.correct + moveText + '\u3002','good');
     const fallback=state.solutionIndex<Number(puzzle.mateLength) ? clone(expected()) : null;
