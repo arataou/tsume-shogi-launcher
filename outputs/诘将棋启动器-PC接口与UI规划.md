@@ -114,7 +114,6 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 
     reply({ sfen })
       -> { ok: true, reply: string, engine: "yaneuraou", engineMs? }
-      -> { ok: true, mate: true, reply: null, engine: "yaneuraou", engineMs? }
       -> { ok: false, reason: string }
 
     solve({ sfen })                 // 可选的题源/诊断接口，不用于正常训练
@@ -128,9 +127,9 @@ solution 是当前兼容格式中的参考手顺。正常训练不使用它否�
 - POST /api/engine/reply
 - POST /api/engine/solve
 - 服务端启动一个常驻 YaneuraOu worker，启动阶段完成 USI 握手和 NNUE 预热；
-- 用户下出合法王手后，页面把当前局面发送给 /api/engine/reply，消费玉方 bestmove；目标手数的最后一手还消费“无应手/诘”终局信号；
-- 不比较用户着法和引擎首着，不把引擎 reply 与题库主线比较；目标手数处由引擎回调和页面本地规则共同确认当前局面确实为诘；
-- 最后一手按题目手数触发终局确认，未诘时判失败并自动重开；引擎异常时使用页面本地规则复核；
+- 用户下出合法王手后，页面把普通回合的当前局面发送给 /api/engine/reply，消费玉方 bestmove；目标手数的最后一手不请求引擎，由页面规则即时确认是否诘；
+- 不比较用户着法和引擎首着，不把引擎 reply 与题库主线比较；目标手数处由页面本地规则直接确认当前局面确实为诘；
+- 最后一手按题目手数触发页面终局确认，未诘时判失败并自动重开；中间回合引擎异常时使用题库应手回退；
 - YaneuraOu 不可用、无合法应手或接口异常时，页面透明回退到题库应手并记录回退次数；
 - /api/engine/solve 仅保留为 shtsume 的辅助求解/诊断入口，正常训练不调用它，不暴露用户可调时限。
 

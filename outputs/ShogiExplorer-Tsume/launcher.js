@@ -914,9 +914,9 @@
     setTimeout(() => finishReply(move,false,puzzle,token,detail), 60);
   }
 
-  function finishAtLimit(puzzle, token, engineMate=null) {
+  function finishAtLimit(puzzle, token) {
     if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
-    if (isCheckmate() && engineMate !== false) { complete(); return; }
+    if (isCheckmate()) { complete(); return; }
     failPuzzle(TEXT.notMate);
   }
 
@@ -937,10 +937,10 @@
   async function engineReply(sfen, fallbackReplyMove, puzzle, token) {
     if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
     const atLimit=state.solutionIndex>=Number(puzzle.mateLength);
+    if (atLimit) { finishAtLimit(puzzle,token); return; }
     const useFallback = detail => {
       if (state.puzzle !== puzzle || state.token !== token || state.solved) return;
       const rec=record(puzzle); rec.engineFallbacks++; rec.lastPlayed=Date.now(); saveProgress();
-      if (atLimit) { finishAtLimit(puzzle,token); return; }
       if (!fallbackReplyMove) {
         state.locked=true; state.enginePending=false; $('turnHint').textContent='\u9700\u8981\u7389\u65B9\u5E94\u624B';
         setEngineStatus('off','\u9898\u5E93\u5E94\u624B'); setFeedback((detail || TEXT.engineOff) + ' \u4F7F\u7528\u9898\u5E93\u5E94\u624B\uFF0C\u8BF7\u91CD\u5F00\u3002','bad'); renderAll();
@@ -958,12 +958,6 @@
     if (!result.ok) { engineAvailable=false; engineChecked=true; setEngineStatus('off','\u4F7F\u7528\u9898\u5E93\u5E94\u624B'); useFallback(TEXT.engineOff); return; }
     const data=result.data; engineAvailable=true; engineChecked=true; setEngineStatus('ok','\u7389\u65B9\u5E94\u624B\u5C31\u7EEA');
     const reply=parseUsi(data.reply);
-    if (atLimit) {
-      const engineMate=data.mate === true ? true : reply && isValidDefenderReply(reply) ? false : null;
-      finishAtLimit(puzzle,token,engineMate);
-      return;
-    }
-    if (data.mate === true) { useFallback(TEXT.engineOff); return; }
     if (!reply || !isValidDefenderReply(reply)) { useFallback(TEXT.engineOff); return; }
     finishReply(reply,true,puzzle,token,data.engineMs ? ('\u7528\u65F6 ' + data.engineMs + 'ms') : '');
   }
