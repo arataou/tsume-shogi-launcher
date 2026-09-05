@@ -38,7 +38,7 @@
   const same = (a, b) => Array.isArray(a) && Array.isArray(b) && a[0] === b[0] && a[1] === b[1];
   const coord = xy => `${xy[0]}${RANKS[xy[1]]}`;
   const dateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-  const makeProgress = () => ({ records:{}, streak:0, lastSolvedDate:'', history:[], activity:[], settings:{ bank:'curated', engineEnabled:true, strictSteps:false, statsPeriod:'day' } });
+  const makeProgress = () => ({ records:{}, streak:0, lastSolvedDate:'', history:[], activity:[], settings:{ bank:'curated', engineEnabled:true, strictSteps:false, sequenceMode:true, statsPeriod:'day' } });
 
   function normalizeProgress(value) {
     const base = makeProgress();
@@ -177,22 +177,92 @@
 
   let engineAvailable = false;
   let engineChecked = false;
+  let resultTimer = null;
   let state = {
     length:5,
     bank:['curated','expanded','all'].includes(settings.bank) ? settings.bank : 'curated',
     puzzle:null, board:null, hands:null, solutionIndex:0,
     selectedFrom:null, selectedDrop:null, pendingMove:null,
     startedAt:0, pausedAt:0, pausedMs:0, paused:false, timer:null,
-    solved:false, locked:false, enginePending:false, answerShown:false,
-    markedOnly:false, wrongOnly:false, attemptedMoves:0, failTimer:null, undoStack:[], token:0
+    solved:false, locked:false, enginePending:false, answerShown:false, answerReplay:null, hintShown:false, resultType:null,
+    sequenceMode:settings.sequenceMode === true, markedOnly:false, wrongOnly:false, attemptedMoves:0, failTimer:null, undoStack:[], token:0
   };
 
   function expected() { return state.puzzle && state.puzzle.solution[state.solutionIndex]; }
   function formatMove(move) {
+    if (!move || !Array.isArray(move.to)) return '';
     if (move.drop) return `${move.drop}*${coord(move.to)}`;
+    if (!Array.isArray(move.from)) return '';
     return `${coord(move.from)}${coord(move.to)}${move.promote ? '+' : ''}`;
   }
-  function allMoves() { return state.puzzle ? state.puzzle.solution.map(formatMove).join('  ') : ''; }
+  const KIF_FILES = ['', '\uFF11','\uFF12','\uFF13','\uFF14','\uFF15','\uFF16','\uFF17','\uFF18','\uFF19'];
+  const KIF_LABELS = { K:'\u7389', R:'\u98DB', B:'\u89D2', G:'\u91D1', S:'\u9280', N:'\u6842', L:'\u9999', P:'\u6B69' };
+  const KIF_PROMOTED_LABELS = { R:'\u9F8D', B:'\u99AC', S:'\u5168', N:'\u572D', L:'\u674F', P:'\u3068' };
+  function puzzlePosition(p) {
+    const board=Array.from({length:10}, () => Array(10).fill(null));
+    for (const piece of p?.initial?.pieces || []) {
+      const promoted=String(piece.type).startsWith('+');
+      board[piece.y][piece.x]={owner:piece.owner,type:promoted ? piece.type.slice(1) : piece.type,promoted};
+    }
+    const hands={attacker:{},defender:{}};
+    for (const owner of ['attacker','defender']) for (const type of TYPES) hands[owner][type]=Number(p?.initial?.hands?.[owner]?.[type] || 0);
+    return {board,hands};
+  }
+  function applyPositionMove(position, move, owner) {
+    if (move.drop) {
+      position.hands[owner][move.drop]=Math.max(0,(position.hands[owner][move.drop] || 0)-1);
+      position.board[move.to[1]][move.to[0]]={owner,type:move.drop,promoted:false};
+      return;
+    }
+    const piece=position.board[move.from[1]][move.from[0]];
+    const captured=position.board[move.to[1]][move.to[0]];
+    if (captured && captured.owner!==owner && captured.type!=='K') position.hands[owner][captured.type]=(position.hands[owner][captured.type] || 0)+1;
+    position.board[move.from[1]][move.from[0]]=null;
+    if (piece) {
+      piece.promoted=piece.promoted || Boolean(move.promote);
+      position.board[move.to[1]][move.to[0]]=piece;
+    }
+  }
+  function solutionMoveOwner(p, index) {
+    const firstOwner=p?.initial?.sideToMove === 'defender' ? 'defender' : 'attacker';
+    return index % 2 === 0 ? firstOwner : (firstOwner === 'attacker' ? 'defender' : 'attacker');
+  }
+  function buildAnswerReplay(p, index=0) {
+    const moves=Array.isArray(p?.solution) ? p.solution : [];
+    const targetIndex=Math.max(0,Math.min(moves.length,Math.floor(Number(index) || 0)));
+    const position=puzzlePosition(p);
+    for (let i=0; i<targetIndex; i++) applyPositionMove(position,moves[i],solutionMoveOwner(p,i));
+    return {board:position.board,hands:position.hands,index:targetIndex};
+  }
+  function renderedPosition() {
+    return state.answerShown && state.answerReplay ? state.answerReplay : {board:state.board,hands:state.hands};
+  }
+  function formatKifuMove(move, owner, position, previousTo=null) {
+    if (!move || !Array.isArray(move.to)) return formatMove(move || {});
+    const sourcePiece=move.drop ? null : position?.board?.[move.from?.[1]]?.[move.from?.[0]];
+    const rawType=move.drop || sourcePiece?.type;
+    const type=String(rawType || '').replace(/^\+/, '');
+    const promoted=Boolean(sourcePiece?.promoted) || String(rawType || '').startsWith('+');
+    const destination=previousTo && same(previousTo,move.to) ? '\u540C\u3000' : `${KIF_FILES[move.to[0]] || move.to[0]}${RANKS[move.to[1]] || move.to[1]}`;
+    const pieceName=move.drop ? KIF_LABELS[type] : (promoted ? (KIF_PROMOTED_LABELS[type] || KIF_LABELS[type]) : KIF_LABELS[type]);
+    if (!pieceName) return `${owner === 'defender' ? '\u25B3' : '\u25B2'}${destination}${formatMove(move)}`;
+    let suffix=move.drop ? '\u6253' : '';
+    if (!move.drop && move.promote) suffix+='\u6210';
+    else if (!move.drop && !move.promote && !promoted && PROMOTABLE.includes(type) && (promotionZone(owner,move.from[1]) || promotionZone(owner,move.to[1]))) suffix+='\u4E0D\u6210';
+    return `${owner === 'defender' ? '\u25B3' : '\u25B2'}${destination}${pieceName}${suffix}`;
+  }
+  function solutionMoveTexts(p) {
+    if (!p) return [];
+    const position=puzzlePosition(p);
+    let previousTo=null;
+    return (p.solution || []).map((move,index) => {
+      const text=formatKifuMove(move,solutionMoveOwner(p,index),position,previousTo);
+      applyPositionMove(position,move,solutionMoveOwner(p,index));
+      previousTo=move.to;
+      return text;
+    });
+  }
+  function allMoves() { return solutionMoveTexts(state.puzzle).join('\u3000'); }
   function setFeedback(text, kind='') { const el=$('feedback'); el.className='feedback' + (kind ? ` ${kind}` : ''); el.innerHTML=text; }
   function collectionName(p) { return (p.collection || 'curated') === 'expanded' ? '\u6269\u5C55\u96C6' : '\u7CBE\u9009\u96C6'; }
   function qualityName(p) { return p.quality === 'validated' ? '\u5DF2\u6821\u9A8C' : '\u6269\u5C55\u9898'; }
@@ -204,6 +274,10 @@
     if (!state.startedAt) return 0;
     const end = state.paused ? state.pausedAt : Date.now();
     return Math.max(0, Math.floor((end - state.startedAt - state.pausedMs) / 1000));
+  }
+  function formatDuration(seconds) {
+    const value=Math.max(0,Number(seconds) || 0);
+    return `${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
   }
   function resetTimer() {
     if (state.timer) clearInterval(state.timer);
@@ -222,6 +296,26 @@
   function resumeTimer() {
     if (!state.paused) return;
     state.pausedMs += Date.now() - state.pausedAt; state.paused = false; state.pausedAt = 0; renderTimer();
+  }
+
+  function closeResultModal() {
+    if (resultTimer) { clearTimeout(resultTimer); resultTimer=null; }
+    $('resultModal')?.classList.remove('show');
+  }
+  function showResultModal() {
+    if (!state.puzzle) return;
+    const modal=$('resultModal'), card=$('resultCard');
+    if (!modal || !card) return;
+    const p=state.puzzle;
+    card.classList.add('success');
+    $('resultIcon').textContent='\u2713';
+    $('resultKicker').textContent='\u8BAD\u7EC3\u5B8C\u6210';
+    $('resultTitle').textContent='\u901A\u5173\uFF01';
+    $('resultMessage').textContent=`#${p.id} \u00B7 ${p.mateLength}\u624B\u9898\u76EE\u5DF2\u5B8C\u6210`;
+    $('resultDetail').textContent=`\u7528\u65F6 ${formatDuration(elapsedSeconds())} \u00B7 \u6210\u7EE9\u5DF2\u8BB0\u5165\u8BAD\u7EC3\u8BB0\u5F55`;
+    if (resultTimer) clearTimeout(resultTimer);
+    modal.classList.add('show');
+    resultTimer=setTimeout(() => { resultTimer=null; closeResultModal(); },3600);
   }
 
   function setEngineStatus(mode, text) {
@@ -243,6 +337,14 @@
       : '\u5224\u5B9A\uFF1A\u738B\u624B\uFF0B\u624B\u6570\u3002\u5F15\u64CE\u4EC5\u8D1F\u8D23\u7389\u65B9\u5E94\u624B\u3002';
   }
 
+  function updatePracticeModeUI() {
+    const random=$('randomButton'), sequence=$('sequenceButton');
+    if (!random || !sequence) return;
+    const ordered=Boolean(state.sequenceMode);
+    random.classList.toggle('active',!ordered); random.classList.toggle('primary',!ordered); random.setAttribute('aria-pressed',String(!ordered));
+    sequence.classList.toggle('active',ordered); sequence.classList.toggle('primary',ordered); sequence.setAttribute('aria-pressed',String(ordered));
+  }
+
   function updateBankUI() {
     document.querySelectorAll('#banks button').forEach(button => button.classList.toggle('active', button.dataset.bank === state.bank));
     const counts = { curated:0, expanded:0, all:0 };
@@ -257,19 +359,17 @@
 
   function prepare(p, countAttempt=true) {
     if (!p) return;
-    if (state.failTimer) { clearTimeout(state.failTimer); state.failTimer = null; }
+    if (state.failTimer) { clearTimeout(state.failTimer); state.failTimer=null; }
+    closePromotion();
+    closeResultModal();
     state.token++;
     state.puzzle = p; state.length = Number(p.mateLength); state.solutionIndex = 0;
     state.selectedFrom = null; state.selectedDrop = null; state.pendingMove = null;
-   state.solved = false; state.locked = false; state.enginePending = false; state.answerShown = false;
+    state.solved = false; state.locked = false; state.enginePending = false; state.answerShown = false; state.answerReplay = null; state.hintShown = false; state.resultType = null;
     state.attemptedMoves = 0; state.undoStack = []; state.paused = false; state.pausedAt = 0; state.pausedMs = 0;
-    state.board = Array.from({length:10}, () => Array(10).fill(null));
-    for (const piece of p.initial.pieces) {
-      const promoted = String(piece.type).startsWith('+');
-      state.board[piece.y][piece.x] = { owner:piece.owner, type:promoted ? piece.type.slice(1) : piece.type, promoted };
-    }
-    state.hands = { attacker:{}, defender:{} };
-    for (const owner of ['attacker','defender']) for (const type of TYPES) state.hands[owner][type] = Number(p.initial.hands?.[owner]?.[type] || 0);
+    const position=puzzlePosition(p);
+    state.board = position.board;
+    state.hands = position.hands;
     const rec = record(p);
     if (countAttempt) { rec.attempts++; logActivity('attempt', p); }
     rec.lastPlayed = Date.now();
@@ -278,8 +378,8 @@
     $('problemTitle').textContent = `${p.mateLength}\u624B\u9898\u76EE #${p.id}`;
     $('problemMeta').textContent = `${collectionName(p)} · ${qualityName(p)} · \u96BE\u5EA6\u5206 ${p.score ?? '-'}`;
     $('problemStatus').textContent = rec.solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
-    $('turnHint').textContent = '\u653B\u65B9\u56DE\u5408'; $('answerLine').textContent = '';
-    updateMarkButton(); updateBankUI(); renderSettings(); setFeedback(TEXT.choose); populateList(); renderAll();
+    $('turnHint').textContent = '\u653B\u65B9\u56DE\u5408';
+    updatePracticeModeUI(); updateMarkButton(); updateBankUI(); renderSettings(); setFeedback(TEXT.choose); populateList(); renderAll();
   }
 
   function poolForMode() { return filteredPuzzles(); }
@@ -292,6 +392,27 @@
     let p = pool[Math.floor(Math.random() * pool.length)];
     if (pool.length > 1 && state.puzzle && p.id === state.puzzle.id && Number(p.mateLength) === Number(state.puzzle.mateLength)) p = pool[(pool.indexOf(p)+1) % pool.length];
     prepare(p); return p;
+  }
+
+  function orderedPuzzle(direction=1, fromStart=false) {
+    const pool=poolForMode();
+    if (!pool.length) {
+      setFeedback(state.wrongOnly ? TEXT.noWrong : state.markedOnly ? TEXT.noMarked : '\u5F53\u524D\u624B\u6570\u6682\u65E0\u9898\u76EE\u3002','bad');
+      return null;
+    }
+    const currentIndex=state.puzzle ? pool.findIndex(item => key(item)===key(state.puzzle)) : -1;
+    let targetIndex;
+    if (fromStart || currentIndex < 0) targetIndex=direction < 0 ? pool.length-1 : 0;
+    else targetIndex=(currentIndex + direction + pool.length) % pool.length;
+    const p=pool[targetIndex]; prepare(p); return p;
+  }
+  function startCurrentMode() {
+    return state.sequenceMode ? orderedPuzzle(1,true) : randomPuzzle();
+  }
+  function navigatePuzzle(direction=1) {
+    state.markedOnly=false; state.wrongOnly=false; populateList();
+    if (direction > 0 && !state.sequenceMode) return randomPuzzle();
+    return orderedPuzzle(direction);
   }
 
   function populateList() {
@@ -308,21 +429,31 @@
   function setLength(length) {
     state.length = Number(length); state.markedOnly = false; state.wrongOnly = false;
     document.querySelectorAll('#lengths button').forEach(b => b.classList.toggle('active', Number(b.dataset.length) === state.length));
-    updateBankUI(); populateList(); randomPuzzle(); renderStats();
+    updateBankUI(); populateList(); startCurrentMode(); renderStats();
   }
   function setBank(bank) {
     state.bank = bank; state.markedOnly = false; state.wrongOnly = false; settings.bank = bank; saveProgress();
-    updateBankUI(); populateList(); randomPuzzle(); renderStats();
+    updateBankUI(); populateList(); startCurrentMode(); renderStats();
+  }
+  function setPracticeMode(mode) {
+    state.sequenceMode=mode==='sequence'; settings.sequenceMode=state.sequenceMode; state.markedOnly=false; state.wrongOnly=false;
+    saveSetting(); updatePracticeModeUI(); populateList(); startCurrentMode(); renderStats();
   }
 
   function renderBoard() {
     const el = $('board'); el.innerHTML = '';
+    const position=renderedPosition();
+    const hintMove=!state.answerShown && state.hintShown ? expected() : null;
+    const replayMove=state.answerShown && state.answerReplay?.index > 0
+      ? state.puzzle?.solution?.[state.answerReplay.index - 1]
+      : null;
+    el.classList.toggle('answer-mode',Boolean(state.answerShown));
     for (let y=1; y<=9; y++) for (let x=9; x>=1; x--) {
       const cell = document.createElement('div'); cell.className='cell'; cell.dataset.x=x; cell.dataset.y=y;
       if (HOSHI.has(String(x) + ',' + String(y))) cell.classList.add('hoshi');
       if (same(state.selectedFrom, [x,y])) cell.classList.add('selected');
-      const e = expected();
-      if (e && !state.locked && state.solutionIndex % 2 === 0 && ((e.drop && same(e.to,[x,y])) || (!e.drop && (same(e.from,[x,y]) || same(e.to,[x,y]))))) cell.classList.add('hint');
+      if (hintMove && !state.locked && state.solutionIndex % 2 === 0 && ((hintMove.drop && same(hintMove.to,[x,y])) || (!hintMove.drop && (same(hintMove.from,[x,y]) || same(hintMove.to,[x,y]))))) cell.classList.add('hint');
+      if (replayMove && ((replayMove.drop && same(replayMove.to,[x,y])) || (!replayMove.drop && (same(replayMove.from,[x,y]) || same(replayMove.to,[x,y]))))) cell.classList.add('replay-current');
       cell.addEventListener('click', () => cellClick(x,y));
       if (y === 1) {
         const fileCoord = document.createElement('span'); fileCoord.className='coord file'; fileCoord.textContent=String(x); cell.appendChild(fileCoord);
@@ -330,7 +461,7 @@
       if (x === 1) {
         const rankCoord = document.createElement('span'); rankCoord.className='coord rank'; rankCoord.textContent=RANKS[y]; cell.appendChild(rankCoord);
       }
-      const piece = state.board?.[y]?.[x];
+      const piece = position.board?.[y]?.[x];
       if (piece) {
         const text = document.createElement('span'); text.className='piece' + (piece.owner === 'defender' ? ' gote' : '') + (piece.promoted ? ' promoted' : '');
         text.textContent = piece.promoted ? (PROMOTED[piece.type] || LABELS[piece.type]) : LABELS[piece.type];
@@ -341,14 +472,15 @@
   }
 
   function renderHands() {
+    const position=renderedPosition();
     for (const owner of ['attacker','defender']) {
       const el = $(owner === 'attacker' ? 'attackerHand' : 'defenderHand'); el.innerHTML=''; let any=false;
       for (const type of TYPES) {
-        const count = state.hands?.[owner]?.[type] || 0; if (count <= 0) continue; any=true;
+        const count = position.hands?.[owner]?.[type] || 0; if (count <= 0) continue; any=true;
         const button = document.createElement('button'); button.className='hand-piece' + (owner === 'attacker' && state.selectedDrop === type ? ' active' : ''); button.textContent=LABELS[type];
         button.title = owner === 'attacker' ? '\u9009\u62E9\u540E\u70B9\u51FB\u76EE\u6807\u683C' : '\u7389\u65B9\u6301\u99D2';
         const countEl=document.createElement('span'); countEl.className='count'; countEl.textContent=count; button.appendChild(countEl);
-        if (owner === 'attacker') button.addEventListener('click', () => { if (state.locked || state.solved) return; state.selectedDrop = state.selectedDrop === type ? null : type; state.selectedFrom=null; setFeedback(state.selectedDrop ? '已选' + LABELS[type] + '，请点目标格。' : '已取消持駒。'); renderAll(); });
+        if (owner === 'attacker' && !state.answerShown) button.addEventListener('click', () => { if (state.locked || state.solved) return; state.selectedDrop = state.selectedDrop === type ? null : type; state.selectedFrom=null; setFeedback(state.selectedDrop ? '已选' + LABELS[type] + '，请点目标格。' : '已取消持駒。'); renderAll(); });
         else button.disabled=true;
         el.appendChild(button);
       }
@@ -356,13 +488,59 @@
     }
   }
 
+  function renderAnswer() {
+    const panel=$('answerPanel'), line=$('answerLine');
+    const answerButton=$('answerButton'), hintButton=$('hintButton');
+    const previousButton=$('answerPreviousButton'), nextButton=$('answerNextButton'), progress=$('answerReplayProgress');
+    if (!panel || !line) return;
+    const shown=Boolean(state.answerShown && state.puzzle && state.answerReplay);
+    panel.hidden=!shown;
+    if (answerButton) {
+      answerButton.textContent=state.answerShown ? '\u8FD4\u56DE\u89E3\u9898' : '\u7B54\u6848';
+      answerButton.setAttribute('aria-pressed',String(Boolean(state.answerShown)));
+      answerButton.disabled=!state.puzzle || (!state.answerShown && state.enginePending);
+      answerButton.title=state.answerShown ? '\u5173\u95ED\u68CB\u8C31\u56DE\u653E' : '\u4ECE\u9898\u9762\u521D\u59CB\u5C40\u9762\u67E5\u770B\u53C2\u8003\u68CB\u8C31';
+    }
+    if (hintButton) hintButton.disabled=Boolean(!state.puzzle || state.answerShown || state.locked || state.solved || state.resultType);
+    if (!shown) {
+      line.textContent='';
+      if (previousButton) previousButton.disabled=true;
+      if (nextButton) nextButton.disabled=true;
+      if (progress) progress.textContent='';
+      return;
+    }
+    const moves=state.puzzle.solution || [], index=state.answerReplay.index;
+    if (progress) progress.textContent=`${index} / ${moves.length}`;
+    if (previousButton) previousButton.disabled=index<=0;
+    if (nextButton) nextButton.disabled=index>=moves.length;
+    line.textContent='';
+    const texts=solutionMoveTexts(state.puzzle);
+    if (!texts.length) {
+      line.textContent='暂无参考棋谱。';
+      return;
+    }
+    texts.forEach((text,index) => {
+      if (index) {
+        const separator=document.createElement('span'); separator.className='answer-separator'; separator.textContent='\u3000'; line.appendChild(separator);
+      }
+      const move=document.createElement('span');
+      move.className='answer-move' + (index < state.answerReplay.index ? ' played' : '') + (index === state.answerReplay.index - 1 ? ' current' : '');
+      move.textContent=`${index + 1}. ${text}`;
+      line.appendChild(move);
+    });
+  }
+
   function renderMoveProgress() {
     const el=$('moveProgress'); if (!el) return;
     if (!state.puzzle) { el.textContent=''; return; }
+    if (state.answerShown && state.answerReplay) {
+      el.textContent=`\u68CB\u8C31 ${state.answerReplay.index} / ${(state.puzzle.solution || []).length}`;
+      return;
+    }
     const total=attackLimit(state.puzzle), done=Math.min(total,Math.ceil((state.solutionIndex||0)/2));
     el.textContent=`进度 ${done} / ${total}`;
   }
-  function renderAll(list=false) { renderBoard(); renderHands(); renderStats(); renderMoveProgress(); updateUndoButton(); if (list) populateList(); }
+  function renderAll(list=false) { renderBoard(); renderHands(); renderStats(); renderMoveProgress(); updateUndoButton(); renderAnswer(); if (list) populateList(); }
 
   function renderStats() {
     const all = puzzles.map(p => ({p, r:record(p)}));
@@ -491,7 +669,7 @@
     return {ok:true};
   }
   function cellClick(x,y) {
-    if (!state.puzzle || state.solved || state.locked) return;
+    if (!state.puzzle || state.answerShown || state.solved || state.locked) return;
     if (state.selectedDrop) { attempt({drop:state.selectedDrop,to:[x,y],promote:false}); return; }
     const piece=state.board[y][x];
     if (!state.selectedFrom) { if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); } return; }
@@ -504,20 +682,48 @@
     state.pendingMove=pendingMove; state.selectedFrom=null;
     const option=promotionOption(state.pendingMove); if (option==='choice') showPromotion(); else attempt({...state.pendingMove,promote:option==='force'});
  }
-  function showPromotion() { $('promotionModal').classList.add('show'); }
-  function closePromotion() { $('promotionModal').classList.remove('show'); state.pendingMove=null; }
+  function positionPromotion() {
+    const modal=$('promotionModal'), popup=modal?.querySelector('.modal-card');
+    if (!modal || !popup || !state.pendingMove || !modal.classList.contains('show')) return;
+    const [x,y]=state.pendingMove.to || [];
+    const target=document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+    if (!target) return;
+    target.classList.add('promotion-target');
+    const rect=target.getBoundingClientRect();
+    const popupRect=popup.getBoundingClientRect();
+    const margin=10, half=popupRect.width/2;
+    const left=Math.max(half+margin,Math.min(window.innerWidth-half-margin,rect.left+rect.width/2));
+    const aboveTop=rect.top-8;
+    const placement=aboveTop-popupRect.height < margin ? 'below' : 'above';
+    popup.style.left=`${left}px`;
+    popup.style.top=`${placement==='above' ? aboveTop : rect.bottom+8}px`;
+    const arrowOffset=Math.max(-half+14,Math.min(half-14,rect.left+rect.width/2-left));
+    popup.style.setProperty('--arrow-offset',`${arrowOffset}px`);
+    modal.dataset.placement=placement;
+  }
+  function showPromotion() {
+    const modal=$('promotionModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    positionPromotion();
+    requestAnimationFrame(() => {
+      positionPromotion();
+      $('promoteButton')?.focus({preventScroll:true});
+    });
+  }
+  function closePromotion() {
+    const modal=$('promotionModal'), popup=modal?.querySelector('.modal-card');
+    modal?.classList.remove('show');
+    if (popup) { popup.style.left=''; popup.style.top=''; popup.style.removeProperty('--arrow-offset'); }
+    if (modal) delete modal.dataset.placement;
+    document.querySelectorAll('.promotion-target').forEach(cell => cell.classList.remove('promotion-target'));
+    state.pendingMove=null;
+  }
   function tryPromotion(value) { const move=state.pendingMove; closePromotion(); if (move) attempt({...move,promote:value}); }
   function flashWrong(move) { const x=move.to?.[0], y=move.to?.[1]; if (!x || !y) return; requestAnimationFrame(() => { const c=document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`); if (c) { c.classList.add('wrong'); setTimeout(() => c.classList.remove('wrong'),500); } }); }
 
   function applyMove(move, owner) {
-    if (move.drop) {
-      state.hands[owner][move.drop]=Math.max(0,(state.hands[owner][move.drop]||0)-1);
-      state.board[move.to[1]][move.to[0]]={owner,type:move.drop,promoted:false}; return;
-    }
-    const piece=state.board[move.from[1]][move.from[0]]; const captured=state.board[move.to[1]][move.to[0]];
-    if (captured && captured.owner!==owner && captured.type!=='K') state.hands[owner][captured.type]=(state.hands[owner][captured.type]||0)+1;
-    state.board[move.from[1]][move.from[0]]=null;
-    if (piece) { piece.promoted=piece.promoted||Boolean(move.promote); state.board[move.to[1]][move.to[0]]=piece; }
+    applyPositionMove({board:state.board,hands:state.hands},move,owner);
   }
 
   function sfenPiece(piece) {
@@ -562,17 +768,16 @@
 
   function updateUndoButton() {
     const button=$('undoButton'); if (!button) return;
-    button.disabled=!state.puzzle || state.locked || state.solved || !state.undoStack.length;
+    button.disabled=!state.puzzle || state.answerShown || state.locked || state.solved || !state.undoStack.length;
      button.title=button.disabled ? '\u6682\u65E0\u53EF\u6094\u7740\u6CD5' : '\u64A4\u56DE\u6700\u8FD1\u7EC4\u653B\u65B9\u7740\u624B\u4E0E\u7389\u65B9\u5E94\u624B';
   }
   function undo() {
-    if (!state.puzzle || state.solved || state.locked || !state.undoStack.length) return;
+    if (!state.puzzle || state.answerShown || state.solved || state.locked || !state.undoStack.length) return;
     const snapshot=state.undoStack.pop();
     state.board=snapshot.board; state.hands=snapshot.hands; state.solutionIndex=snapshot.solutionIndex;
-    state.answerShown=Boolean(snapshot.answerShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
+    state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
     $('problemStatus').textContent=record(state.puzzle).solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
     $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
-    $('answerLine').textContent=state.answerShown ? '\u53C2\u8003\u624B\u987A\uFF1A' + allMoves() : '';
      setFeedback('\u5DF2\u6094\u68CB\u3002');
     renderAll();
   }
@@ -582,10 +787,11 @@
       state.locked=true; state.enginePending=false; $('turnHint').textContent='\u9700\u8981\u7389\u65B9\u5E94\u624B';
       setFeedback('\u7389\u65B9\u5E94\u624B\u65E0\u6548\uFF0C\u8BF7\u91CD\u5F00\u3002','bad'); renderAll(); return;
     }
+    const moveText=formatKifuMove(move,'defender',{board:state.board});
     applyMove(move,'defender'); state.solutionIndex++; state.locked=false; state.enginePending=false;
-   $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
-   const suffix=detail ? ` ${detail}` : '';
-   setFeedback(usedEngine ? `\u7389\u65B9\u5E94\u624B\uFF08\u5F15\u64CE\uFF09\uFF1A${formatMove(move)}\u3002${suffix}` : `\u7389\u65B9\u5E94\u624B\uFF1A${formatMove(move)}\u3002${suffix}`);
+    $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
+    const suffix=detail ? ` ${detail}` : '';
+    setFeedback(usedEngine ? `\u7389\u65B9\u5E94\u624B\uFF08\u5F15\u64CE\uFF09\uFF1A${moveText}\u3002${suffix}` : `\u7389\u65B9\u5E94\u624B\uFF1A${moveText}\u3002${suffix}`);
     if (usedEngine) setEngineStatus('ok','\u7389\u65B9\u5E94\u624B\u5C31\u7EEA');
     renderAll();
   }
@@ -644,14 +850,14 @@
     progress.history=progress.history.slice(0,40);
   }
   function failPuzzle(reason) {
-    if (!state.puzzle || state.solved || state.failTimer) return;
+    if (!state.puzzle || state.solved || state.resultType || state.failTimer) return;
     const p=state.puzzle, rec=record(p); rec.failed++; rec.lastFailedAt=Date.now(); progress.failures=Number(progress.failures||0)+1; pushHistory(p,'failed'); logActivity('failed',p,{seconds:elapsedSeconds()}); saveProgress();
     pauseTimer(); state.locked=true; state.enginePending=false; $('problemStatus').textContent='\u5224\u5B9A\u5931\u8D25'; $('turnHint').textContent='\u5373\u5C06\u91CD\u5F00'; setFeedback(`${reason} <strong>\u91CD\u5F00\u4E2D\u2026</strong>`,'fail'); renderAll();
     const token=state.token; state.failTimer=setTimeout(() => { state.failTimer=null; if (state.puzzle===p && state.token===token) prepare(p,true); },900);
   }
 
   function attempt(move) {
-    if (!state.puzzle || state.solved || state.locked) return;
+    if (!state.puzzle || state.answerShown || state.solved || state.locked) return;
     const puzzle=state.puzzle; state.attemptedMoves++;
     if (settings.strictSteps && state.attemptedMoves > attackLimit(puzzle)) { failPuzzle(TEXT.overLimit); return; }
     state.selectedFrom=null; state.selectedDrop=null;
@@ -661,9 +867,10 @@
       const lastChance=settings.strictSteps && state.attemptedMoves===attackLimit(puzzle) ? ' <strong>\u6700\u540E\u4E00\u6B21\u3002</strong>' : '';
       setFeedback(rule.message + lastChance,'bad'); flashWrong(move); renderAll(); return;
     }
-    const snapshot={board:clone(state.board), hands:clone(state.hands), solutionIndex:state.solutionIndex, answerShown:state.answerShown};
+    const snapshot={board:clone(state.board), hands:clone(state.hands), solutionIndex:state.solutionIndex, hintShown:state.hintShown};
     state.undoStack.push(snapshot);
-    applyMove(move,'attacker'); state.solutionIndex++; setFeedback(TEXT.correct + formatMove(move) + '\u3002','good');
+    const moveText=formatKifuMove(move,'attacker',{board:snapshot.board});
+    applyMove(move,'attacker'); state.solutionIndex++; state.hintShown=false; setFeedback(TEXT.correct + moveText + '\u3002','good');
     const fallback=state.solutionIndex<Number(puzzle.mateLength) ? clone(expected()) : null;
     const token=state.token;
     engineReply(currentSfen(),fallback,puzzle,token);
@@ -674,16 +881,39 @@
     const seconds=elapsedSeconds(); state.solved=true; state.locked=false; state.enginePending=false; rec.solved=true; rec.solvedAt=Date.now(); rec.seconds=seconds; rec.bestSeconds=rec.bestSeconds ? Math.min(rec.bestSeconds,seconds) : seconds;
     const today=dateKey(); if (progress.lastSolvedDate!==today) { const yesterday=dateKey(new Date(Date.now()-86400000)); progress.streak=progress.lastSolvedDate===yesterday ? Number(progress.streak||0)+1 : 1; progress.lastSolvedDate=today; }
     pushHistory(p,'solved'); logActivity('solved',p,{seconds:seconds}); saveProgress(); pauseTimer();
-    $('problemStatus').textContent='\u5DF2\u5B8C\u6210'; $('turnHint').textContent='\u5B8C\u6210'; $('answerLine').textContent='\u53C2\u8003\u624B\u987A\uFF1A' + allMoves(); setFeedback('\u5B8C\u6210\uFF01 #' + p.id + ' \u00B7 ' + p.mateLength + '\u624B\u3002','good'); renderAll();
+    state.resultType='solved'; $('problemStatus').textContent='\u5DF2\u5B8C\u6210'; $('turnHint').textContent='\u5DF2\u5B8C\u6210'; setFeedback('\u5B8C\u6210\uFF01 #' + p.id + ' \u00B7 ' + p.mateLength + '\u624B\u3002','good'); renderAll(); showResultModal();
   }
 
   function hint() {
-    const e=expected(); if (!e || state.solved || state.locked) return;
+    const e=expected(); if (!e || state.answerShown || state.solved || state.locked || state.resultType) return;
+    state.hintShown=true;
     const rec=record(state.puzzle); rec.hints++; rec.lastPlayed=Date.now(); saveProgress();
-    setFeedback(e.drop ? '提示：' + coord(e.to) + ' 打。' : '提示：' + coord(e.from) + ' → ' + coord(e.to) + (e.promote ? '（成）' : '')); renderBoard();
+    setFeedback(e.drop ? '提示：' + coord(e.to) + ' 打。' : '提示：' + coord(e.from) + ' → ' + coord(e.to) + (e.promote ? '（成）' : '')); renderAll();
+  }
+  function stepAnswer(direction) {
+    if (!state.answerShown || !state.answerReplay || !state.puzzle) return;
+    const moves=state.puzzle.solution || [];
+    const target=Math.max(0,Math.min(moves.length,state.answerReplay.index + direction));
+    if (target===state.answerReplay.index) return;
+    state.answerReplay=buildAnswerReplay(state.puzzle,target);
+    setFeedback(target===0 ? '已回到题面初始局面。' : target===moves.length ? '参考棋谱已推演完。' : `棋谱回放：第 ${target} 手。`);
+    renderAll();
   }
   function answer() {
-    if (!state.puzzle) return; const rec=record(state.puzzle); rec.answerShown++; rec.lastPlayed=Date.now(); state.answerShown=true; pauseTimer(); saveProgress(); $('answerLine').textContent='参考手顺：' + allMoves(); setFeedback('参考手顺已显示，计时暂停。'); renderAll();
+    if (!state.puzzle) return;
+    if (state.answerShown) {
+      state.answerShown=false; state.answerReplay=null;
+      if (!state.solved && !state.resultType && !state.locked) resumeTimer();
+      $('turnHint').textContent=state.solved ? '已完成' : state.resultType ? '请重开' : state.locked ? '需要玉方应手' : '攻方回合';
+      setFeedback('已返回当前解题局面。');
+      renderAll();
+      return;
+    }
+    if (state.enginePending) {
+      setFeedback('请等待玉方应手完成后再查看答案。','pending');
+      return;
+    }
+    const rec=record(state.puzzle); rec.answerShown++; rec.lastPlayed=Date.now(); state.answerShown=true; state.answerReplay=buildAnswerReplay(state.puzzle,0); state.selectedFrom=null; state.selectedDrop=null; closePromotion(); pauseTimer(); saveProgress(); $('turnHint').textContent='答案回放'; setFeedback('参考棋谱已显示，点击 &lt; / &gt; 自动推演。'); renderAll();
   }
   function toggleMark() {
     if (!state.puzzle) return; const rec=record(state.puzzle); rec.marked=!rec.marked; saveProgress(); updateMarkButton(); populateList(); renderStats(); setFeedback(rec.marked ? '\u5DF2\u6807\u8BB0\u3002\u53EF\u4ECE\u6807\u8BB0\u91CD\u5237\u8FDB\u5165\u3002' : '\u5DF2\u53D6\u6D88\u6807\u8BB0\u3002');
@@ -691,15 +921,10 @@
   function updateMarkButton() { const marked=state.puzzle && record(state.puzzle).marked; $('markButton').textContent=marked ? '★ \u5DF2\u6807\u8BB0' : '☆ \u6807\u8BB0'; }
   function restart() { if (state.puzzle) prepare(state.puzzle,true); }
   function skip() {
-    if (!state.puzzle) return; const p=state.puzzle, rec=record(p); rec.skipped++; rec.lastPlayed=Date.now(); pushHistory(p,'skipped'); logActivity('skipped',p); saveProgress(); state.markedOnly=false; state.wrongOnly=false; const next=randomPuzzle(); if (next) setFeedback('\u5DF2\u8DF3\u8FC7\u3002');
+    if (!state.puzzle) return; const p=state.puzzle, rec=record(p); rec.skipped++; rec.lastPlayed=Date.now(); pushHistory(p,'skipped'); logActivity('skipped',p); saveProgress(); const next=navigatePuzzle(1); if (next) setFeedback('\u5DF2\u8DF3\u8FC7\u3002');
   }
   function markedRandom() { state.markedOnly=true; state.wrongOnly=false; populateList(); if (!filteredPuzzles().length) { state.markedOnly=false; populateList(); setFeedback(TEXT.noMarked,'bad'); return; } randomPuzzle(); }
   function wrongRandom() { state.wrongOnly=true; state.markedOnly=false; populateList(); if (!filteredPuzzles().length) { state.wrongOnly=false; populateList(); setFeedback(TEXT.noWrong,'bad'); return; } randomPuzzle(); }
-  function daily() {
-    state.markedOnly=false; state.wrongOnly=false; const pool=puzzles.filter(p => Number(p.mateLength)===state.length && bankMatches(p)); if (!pool.length) return;
-    const text=dateKey(), hash=[...text].reduce((n,c) => (n*31+c.charCodeAt(0))|0,0); const p=pool[Math.abs(hash)%pool.length]; prepare(p); setFeedback('今日题：' + p.mateLength + '手 #' + p.id + '。');
-  }
-
   async function checkEngine() {
     if (!BRIDGE) { engineChecked=true; setEngineStatus('off','\u8BF7\u7528 Start.bat'); return; }
     try {
@@ -719,19 +944,30 @@
     document.querySelectorAll('#banks button').forEach(button => button.addEventListener('click', () => setBank(button.dataset.bank)));
     document.querySelectorAll('#lengths button').forEach(button => button.addEventListener('click', () => setLength(button.dataset.length)));
     document.querySelectorAll('#statPeriods button').forEach(button => button.addEventListener('click', () => { settings.statsPeriod=button.dataset.period; saveSetting(); renderPeriodStats(); }));
-    $('randomButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
-    $('markedButton').addEventListener('click', markedRandom); $('wrongButton').addEventListener('click', wrongRandom); $('dailyButton').addEventListener('click', daily);
+    $('randomButton').addEventListener('click', () => setPracticeMode('random')); $('sequenceButton').addEventListener('click', () => setPracticeMode('sequence'));
+    $('markedButton').addEventListener('click', markedRandom); $('wrongButton').addEventListener('click', wrongRandom);
     $('onlineButton').addEventListener('click', () => window.open('https://tokuhirom.github.io/tanuki-tsume-shogi/','_blank','noopener'));
     $('puzzleSelect').addEventListener('change', event => { const p=puzzles.find(item => key(item)===event.target.value); if (p) { state.markedOnly=false; state.wrongOnly=false; prepare(p,true); } });
-    $('nextButton').addEventListener('click', () => { state.markedOnly=false; state.wrongOnly=false; populateList(); randomPuzzle(); });
-    $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
+    $('previousButton').addEventListener('click', () => navigatePuzzle(-1)); $('nextButton').addEventListener('click', () => navigatePuzzle(1));
+    $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('answerPreviousButton').addEventListener('click', () => stepAnswer(-1)); $('answerNextButton').addEventListener('click', () => stepAnswer(1)); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
     $('noPromoteButton').addEventListener('click', () => tryPromotion(false)); $('promoteButton').addEventListener('click', () => tryPromotion(true));
     $('engineToggle').addEventListener('change', event => { settings.engineEnabled=event.target.checked; saveSetting(); if (!settings.engineEnabled) setEngineStatus('off','\u5DF2\u5173\u95ED'); else { checkEngine(); } });
     $('strictSteps').addEventListener('change', event => { settings.strictSteps=event.target.checked; saveSetting(); renderSettings(); });
     document.addEventListener('keydown', event => {
       if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
-      const k=event.key.toLowerCase(); if (k==='h') hint(); else if (k==='n') randomPuzzle(); else if (k==='m') toggleMark(); else if (k==='r') restart(); else if (k==='u' || (event.ctrlKey && k==='z')) undo();
+      const promotionShown=$('promotionModal')?.classList.contains('show');
+      if (promotionShown) {
+        if (event.key === 'Escape') { event.preventDefault(); closePromotion(); renderAll(); return; }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault(); (event.key === 'ArrowLeft' ? $('noPromoteButton') : $('promoteButton'))?.focus({preventScroll:true});
+        }
+        return;
+      }
+      if (state.answerShown && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) { event.preventDefault(); stepAnswer(event.key === 'ArrowLeft' ? -1 : 1); return; }
+      const k=event.key.toLowerCase(); if (k==='h') hint(); else if (k==='n') navigatePuzzle(1); else if (k==='m') toggleMark(); else if (k==='r') restart(); else if (k==='u' || (event.ctrlKey && k==='z')) undo();
     });
+    window.addEventListener('resize', positionPromotion);
+    window.addEventListener('scroll', positionPromotion, true);
     window.addEventListener('pagehide', flushProgress);
   }
 
@@ -739,8 +975,9 @@
     progress = await loadProgress();
     settings = progress.settings;
     state.bank = ['curated','expanded','all'].includes(settings.bank) ? settings.bank : 'curated';
+    state.sequenceMode = settings.sequenceMode === true;
     bindEvents();
-    updateBankUI(); renderSettings(); populateList(); prepare(puzzles.find(p => Number(p.mateLength)===5 && bankMatches(p)) || puzzles[0], true); checkEngine();
+    updatePracticeModeUI(); updateBankUI(); renderSettings(); populateList(); prepare(puzzles.find(p => Number(p.mateLength)===5 && bankMatches(p)) || puzzles[0], true); checkEngine();
   }
 
   bootstrap();

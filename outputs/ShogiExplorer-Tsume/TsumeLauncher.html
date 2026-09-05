@@ -645,15 +645,281 @@
        .hand-card { padding:9px 10px; }
        .cell[data-y="1"] .coord.file { top:-18px; }
        .cell[data-x="1"] .coord.rank { right:-18px; }
-     }
-  </style>
+      }
+      .practice-modes {
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:8px;
+        margin-top:10px;
+      }
+      .practice-modes button {
+        min-height:43px;
+        padding:8px 7px;
+        white-space:nowrap;
+      }
+      .practice-modes button.active {
+        border-color:#8dbca9;
+        color:#2d6d5c;
+        background:linear-gradient(145deg,#eef8f2,#dfefe7);
+        box-shadow:inset 0 0 0 1px rgba(47,111,97,.1),0 4px 10px rgba(65,112,91,.08);
+      }
+      #resultModal {
+        position:absolute;
+        inset:0;
+        display:none;
+        place-items:center;
+        padding:18px;
+        border-radius:inherit;
+        background:radial-gradient(circle at 50% 47%,rgba(255,250,231,.24),rgba(73,55,34,.16) 70%,rgba(47,37,26,.3));
+        backdrop-filter:none;
+        pointer-events:none;
+        z-index:5;
+      }
+      #resultModal.show { display:grid; }
+      .result-card {
+        width:min(378px,calc(100% - 10px));
+        overflow:hidden;
+        padding:0;
+        border:1px solid #d9cbb7;
+        border-radius:22px;
+        text-align:center;
+        background:linear-gradient(145deg,#fffdf8 0%,#f7f1e7 100%);
+        box-shadow:0 26px 70px rgba(62,47,31,.27),inset 0 1px rgba(255,255,255,.9);
+        animation:result-pop .24s ease-out;
+        pointer-events:none;
+      }
+      @keyframes result-pop {
+        from { opacity:0; transform:translateY(10px) scale(.97); }
+        to { opacity:1; transform:translateY(0) scale(1); }
+      }
+      .result-card::before {
+        content:"";
+        display:block;
+        height:6px;
+        background:linear-gradient(90deg,#b97b43,#e5c078,#76a88f);
+      }
+      .result-hero {
+        padding:27px 26px 21px;
+        background:radial-gradient(circle at 50% 0,rgba(255,255,255,.9),transparent 64%);
+      }
+      .result-card.success .result-hero {
+        background:radial-gradient(circle at 50% 0,rgba(222,244,231,.95),transparent 68%);
+      }
+      .result-icon {
+        width:62px;
+        height:62px;
+        display:grid;
+        place-items:center;
+        margin:0 auto 13px;
+        border:1px solid #a7cdbb;
+        border-radius:50%;
+        color:#216c55;
+        background:linear-gradient(145deg,#f5fff9,#cdebd9);
+        box-shadow:0 8px 18px rgba(42,105,80,.16),inset 0 1px rgba(255,255,255,.85);
+        font-size:31px;
+        font-weight:800;
+      }
+      .result-kicker {
+        margin-bottom:4px;
+        color:#8b7b69;
+        font-size:12px;
+        font-weight:800;
+        letter-spacing:.16em;
+      }
+      .result-card h3 {
+        margin:0;
+        color:#2f3d37;
+        font-size:27px;
+        letter-spacing:.04em;
+      }
+      .result-message {
+        margin:9px auto 0;
+        max-width:360px;
+        color:#59645e;
+        font-size:14px;
+      }
+      .result-detail {
+        margin:13px auto 0;
+        padding:9px 12px;
+        border:1px solid #e8dece;
+        border-radius:11px;
+        color:#887b6d;
+        background:rgba(255,255,255,.58);
+        font-size:12px;
+      }
+      @media (max-width:600px) {
+        .practice-modes { gap:6px; }
+        .practice-modes button { font-size:13px; }
+        .result-card { border-radius:18px; }
+        .result-hero { padding:23px 18px 18px; }
+      }
+      #promotionModal {
+        position:fixed;
+        inset:0;
+        display:none;
+        place-items:unset;
+        pointer-events:auto;
+        background:transparent;
+        backdrop-filter:none;
+        z-index:6;
+      }
+      #promotionModal.show { display:block; }
+      #promotionModal .modal-card {
+        position:absolute;
+        width:auto;
+        min-width:184px;
+        padding:9px;
+        border:1px solid #cbb895;
+        border-radius:14px;
+        background:linear-gradient(145deg,#fffdf7,#f4ead8);
+        box-shadow:0 13px 28px rgba(70,48,28,.24),inset 0 1px rgba(255,255,255,.88);
+        transform:translate(-50%,-100%);
+        pointer-events:auto;
+      }
+      #promotionModal .modal-card::after {
+        content:"";
+        position:absolute;
+        left:calc(50% + var(--arrow-offset,0px));
+        bottom:-7px;
+        width:12px;
+        height:12px;
+        border-right:1px solid #cbb895;
+        border-bottom:1px solid #cbb895;
+        background:#f4ead8;
+        transform:translateX(-50%) rotate(45deg);
+      }
+      #promotionModal[data-placement="below"] .modal-card { transform:translate(-50%,0); }
+      #promotionModal[data-placement="below"] .modal-card::after {
+        top:-7px;
+        bottom:auto;
+        border-top:1px solid #cbb895;
+        border-left:1px solid #cbb895;
+        border-right:0;
+        border-bottom:0;
+      }
+      #promotionModal h3 {
+        margin:0 3px 7px;
+        color:#776752;
+        font-size:11px;
+        font-weight:800;
+        letter-spacing:.08em;
+        text-align:center;
+      }
+      #promotionModal .modal-actions { gap:6px; }
+      #promotionModal .modal-actions button {
+        min-width:78px;
+        min-height:38px;
+        padding:7px 9px;
+        border-radius:9px;
+        font-size:13px;
+        white-space:nowrap;
+      }
+      #promotionModal .modal-actions button:hover,
+      #promotionModal .modal-actions button:focus-visible {
+        transform:translateY(-1px);
+      }
+      #promotionModal .modal-actions button:focus-visible {
+        outline:3px solid rgba(74,137,108,.28);
+        outline-offset:1px;
+      }
+      .cell.promotion-target {
+        background:#f6d892;
+        box-shadow:inset 0 0 0 3px #b8782f,0 0 0 3px rgba(255,255,255,.25);
+      }
+      @media (max-width:600px) {
+        #promotionModal .modal-card { min-width:166px; padding:8px; }
+        #promotionModal .modal-actions button { min-width:69px; min-height:36px; font-size:12px; }
+      }
+      .answer-panel {
+        margin-top:13px;
+        padding:13px 15px 12px;
+        border:1px solid #ddcfba;
+        border-radius:15px;
+        background:linear-gradient(145deg,rgba(255,253,248,.96),rgba(246,240,229,.9));
+        box-shadow:0 8px 18px rgba(87,69,47,.06),inset 0 1px rgba(255,255,255,.82);
+      }
+      .answer-toolbar {
+        display:flex;
+        align-items:center;
+        gap:9px;
+        color:#786c60;
+        font-size:12px;
+      }
+      .answer-toolbar strong {
+        color:#4d5e55;
+        font-size:13px;
+      }
+      .answer-progress {
+        color:#927f6c;
+        font-variant-numeric:tabular-nums;
+      }
+      .answer-controls {
+        display:flex;
+        gap:6px;
+        margin-left:auto;
+      }
+      .answer-controls button {
+        width:36px;
+        height:32px;
+        padding:0;
+        border-color:#d5c3a9;
+        color:#6b5137;
+        background:#fffaf0;
+        font-size:20px;
+        line-height:1;
+      }
+      .answer-controls button:hover {
+        border-color:#b98d59;
+        background:#fff2d7;
+      }
+      .answer-controls button:disabled {
+        cursor:default;
+        opacity:.42;
+        transform:none;
+        box-shadow:none;
+      }
+      .answer-line {
+        display:flex;
+        flex-wrap:wrap;
+        gap:5px 0;
+        margin-top:10px;
+        color:#8b7b6b;
+        font-size:13px;
+        line-height:1.8;
+        word-break:normal;
+      }
+      .answer-move {
+        padding:2px 5px;
+        border-radius:6px;
+        white-space:nowrap;
+      }
+      .answer-move.played { color:#527565; }
+      .answer-move.current {
+        color:#684b22;
+        background:#f7e3b7;
+        box-shadow:inset 0 0 0 1px #d3ad6a;
+        font-weight:800;
+      }
+      .answer-separator { color:#c0ad94; white-space:pre; }
+      #board.answer-mode .cell { cursor:default; }
+      .cell.replay-current {
+        background:rgba(172,213,193,.42);
+        box-shadow:inset 0 0 0 3px rgba(54,122,96,.72),0 0 0 2px rgba(255,255,255,.24);
+      }
+      @media (max-width:600px) {
+        .answer-panel { padding:11px 10px 10px; }
+        .answer-toolbar { gap:7px; }
+        .answer-controls button { width:34px; height:30px; }
+        .answer-line { font-size:12px; }
+      }
+   </style>
 </head>
 <body>
   <div class="app">
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">&#x8A70;</div>
-        <div><h1>&#x8A70;&#x5C06;&#x68CB;&#x7EC3;&#x4E60;</h1><p>5 / 7 / 9 &#x624B; · &#x6BCF;&#x65E5;&#x4E00;&#x9898;</p></div>
+        <div><h1>&#x8A70;&#x5C06;&#x68CB;&#x7EC3;&#x4E60;</h1><p>5 / 7 / 9 &#x624B; · &#x6309;&#x987A;&#x5E8F;&#x8BAD;&#x7EC3;&#xFF08;&#x9ED8;&#x8BA4;&#xFF09;</p></div>
       </div>
       <div class="top-actions"><span class="pill" id="bankSummary">&#x9898;&#x5E93;</span><span class="pill" id="enginePill">&#x5F15;&#x64CE;&#x68C0;&#x6D4B;&#x4E2D;</span><span id="timer">00:00</span></div>
     </header>
@@ -669,10 +935,9 @@
             <button data-length="5" class="active">5 &#x624B;</button><button data-length="7">7 &#x624B;</button><button data-length="9">9 &#x624B;</button>
           </div>
           <div class="stack" style="margin-top:10px">
-            <button id="randomButton" class="primary wide">&#x968F;&#x673A;</button>
+            <div class="practice-modes" id="practiceModes"><button id="randomButton">&#x968F;&#x673A;&#x5237;&#x9898;</button><button id="sequenceButton" class="primary">&#x6309;&#x987A;&#x5E8F;&#x5237;&#x9898;</button></div>
             <button id="markedButton" class="wide">&#x6807;&#x8BB0;&#x91CD;&#x5237;</button>
             <button id="wrongButton" class="wide">&#x9519;&#x9898;&#x91CD;&#x5237;</button>
-            <button id="dailyButton" class="wide">&#x4ECA;&#x65E5;&#x9898;</button>
             <button id="onlineButton" class="wide">&#x5728;&#x7EBF;&#x7CBE;&#x9009;</button>
           </div>
           <h3>&#x9898;&#x76EE;&#x5217;&#x8868;</h3>
@@ -720,19 +985,21 @@
           <div><h2 id="problemTitle">&#x51C6;&#x5907;&#x4E2D;&#x2026;</h2><div class="problem-meta"><span id="problemMeta"></span><span id="problemStatus"></span><span id="moveProgress"></span></div></div>
           <div class="problem-actions"><button id="markButton">☆ &#x6807;&#x8BB0;</button><button id="hintButton">&#x63D0;&#x793A;</button><button id="answerButton">&#x7B54;&#x6848;</button></div>
         </div>
-        <div class="board-card"><div id="board" aria-label="tsume board"></div></div>
+        <div class="board-card"><div id="board" aria-label="tsume board"></div><div id="promotionModal" class="modal" role="dialog" aria-modal="true" aria-label="&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;"><div class="modal-card"><h3>&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;</h3><div class="modal-actions"><button id="promoteButton" class="primary">&#x6210;&#x308B;</button><button id="noPromoteButton">&#x4E0D;&#x6210;</button></div></div></div><div id="resultModal" class="modal" role="status" aria-live="polite" aria-atomic="true"><div id="resultCard" class="modal-card result-card success"><div class="result-hero"><div id="resultIcon" class="result-icon">&#x2713;</div><div id="resultKicker" class="result-kicker">&#x8BAD;&#x7EC3;&#x5B8C;&#x6210;</div><h3 id="resultTitle">&#x901A;&#x5173;&#xFF01;</h3><p id="resultMessage" class="result-message"></p><div id="resultDetail" class="result-detail"></div></div></div></div></div>
         <div class="hands">
           <div class="hand-card"><div class="hand-title">&#x653B;&#x65B9;&#x6301;&#x99D2; · &#x70B9;&#x51FB;&#x843D;&#x5B50;</div><div id="attackerHand" class="hand-pieces"></div></div>
           <div class="hand-card"><div class="hand-title">&#x7389;&#x65B9;&#x6301;&#x99D2;</div><div id="defenderHand" class="hand-pieces"></div></div>
         </div>
-        <div class="actionbar"><button id="nextButton" class="primary">&#x4E0B;&#x4E00;&#x9898;</button><button id="undoButton">&#x6094;&#x68CB;</button><button id="restartButton">&#x91CD;&#x5F00;</button><button id="skipButton">&#x8DF3;&#x8FC7;</button><span class="spacer"></span><span id="turnHint" class="pill">&#x653B;&#x65B9;&#x56DE;&#x5408;</span></div>
+        <div class="actionbar"><button id="previousButton">&#x4E0A;&#x4E00;&#x9898;</button><button id="nextButton" class="primary">&#x4E0B;&#x4E00;&#x9898;</button><button id="undoButton">&#x6094;&#x68CB;</button><button id="restartButton">&#x91CD;&#x5F00;</button><button id="skipButton">&#x8DF3;&#x8FC7;</button><span class="spacer"></span><span id="turnHint" class="pill">&#x653B;&#x65B9;&#x56DE;&#x5408;</span></div>
         <div id="feedback" class="feedback">&#x8BF7;&#x9009;&#x62E9;&#x653B;&#x65B9;&#x7740;&#x624B;&#x3002;</div>
-        <div id="answerLine" class="answer"></div>
+        <div id="answerPanel" class="answer-panel" hidden>
+          <div class="answer-toolbar"><strong>参考手顺</strong><span id="answerReplayProgress" class="answer-progress">0 / 0</span><div class="answer-controls"><button id="answerPreviousButton" aria-label="上一手" title="上一手">&lt;</button><button id="answerNextButton" aria-label="下一手" title="下一手">&gt;</button></div></div>
+          <div id="answerLine" class="answer-line"></div>
+        </div>
         <p class="note">&#x7CBE;&#x9009;&#x96C6;&#x4F18;&#x5148;&#x7EC3;&#x4E60;&#xFF0C;&#x6269;&#x5C55;&#x96C6;&#x7528;&#x4E8E;&#x5927;&#x91CF;&#x7EC3;&#x4E60;&#x3002;&#x8BB0;&#x5F55;&#x4FDD;&#x5B58;&#x5728;&#x672C;&#x673A;&#x3002;</p>
       </section>
     </main>
   </div>
-  <div id="promotionModal" class="modal"><div class="modal-card"><h3>&#x6210;&#x308A;&#x3092;&#x9078;&#x629E;</h3><div class="modal-actions"><button id="noPromoteButton" class="wide">&#x4E0D;&#x6210;</button><button id="promoteButton" class="primary wide">&#x6210;&#x308B;</button></div></div></div>
   <script src="puzzle-data.js"></script>
   <script src="launcher.js"></script>
 
