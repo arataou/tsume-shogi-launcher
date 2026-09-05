@@ -449,6 +449,7 @@ function Handle-Request($Context) {
       '/' { $file = Join-Path $Root 'TsumeLauncher.html'; $contentType = 'text/html; charset=utf-8'; break }
       '/TsumeLauncher.html' { $file = Join-Path $Root 'TsumeLauncher.html'; $contentType = 'text/html; charset=utf-8'; break }
       '/puzzle-data.js' { $file = Join-Path $Root 'puzzle-data.js'; $contentType = 'application/javascript; charset=utf-8'; break }
+      '/tsume-rules.js' { $file = Join-Path $Root 'tsume-rules.js'; $contentType = 'application/javascript; charset=utf-8'; break }
       '/launcher.js' { $file = Join-Path $Root 'launcher.js'; $contentType = 'application/javascript; charset=utf-8'; break }
       default { Send-Text $response 'Not found' 'text/plain; charset=utf-8' 404; return }
     }
