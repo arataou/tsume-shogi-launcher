@@ -15,13 +15,15 @@
 
 ## 使用
 
-直接进入 outputs/ShogiExplorer-Tsume：
+推荐下载 Releases 中的 `ShogiExplorer-Tsume-Full.zip`，解压后进入 `ShogiExplorer-Tsume`：
 
 1. 双击 TsumeLauncher.exe；
 2. 如果没有 WebView2，使用 Start-Browser.bat；
 3. 也可以使用 Start.bat 启动本地训练页面。
 
 训练记录保存在浏览器本地存储中。清理站点数据会清除记录，题库不会受到影响。
+
+源码仓库不提交约 163 MB 的 `TsumeLauncher.exe`，该文件随 Windows Release 压缩包发布；这样可以避开 GitHub 普通文件的 100 MB 限制。只克隆源码时仍可使用 `Start-Browser.bat` 或 `Start.bat`，也可以按下方项目结构自行重新发布宿主程序。
 
 ## 项目结构
 
@@ -33,7 +35,7 @@
         launcher.js              训练状态、规则和统计
         puzzle-data.js           内置题库
         server.ps1               本地服务与引擎桥
-        TsumeLauncher.exe        Windows 独立窗口宿主
+        TsumeLauncher.exe        Windows 独立窗口宿主（Release 附件）
         engines/                 YaneuraOu、shtsume 和授权说明
 
 ## 重新打包
