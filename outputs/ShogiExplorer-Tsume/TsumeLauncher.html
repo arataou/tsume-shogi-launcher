@@ -912,7 +912,100 @@
         .answer-controls button { width:34px; height:30px; }
         .answer-line { font-size:12px; }
       }
-   </style>
+      /* 棋盘两侧持驹：桌面优先，窄屏自动回到底部。 */
+      .board-layout {
+        display:grid;
+        grid-template-columns:minmax(92px,1fr) minmax(0,684px) minmax(92px,1fr);
+        align-items:stretch;
+        gap:12px;
+        max-width:1000px;
+        margin:0 auto;
+      }
+      .board-layout .board-card {
+        width:100%;
+        min-width:0;
+        padding:24px;
+        align-items:center;
+      }
+      .hand-rail {
+        min-width:0;
+        display:flex;
+      }
+      .hand-rail .hand-card {
+        width:100%;
+        height:100%;
+        min-height:100%;
+        display:flex;
+        flex-direction:column;
+        padding:14px 9px;
+      }
+      .hand-rail .hand-title {
+        text-align:center;
+        line-height:1.45;
+        white-space:normal;
+      }
+      .hand-rail .hand-pieces {
+        min-height:0;
+        flex:1;
+        flex-direction:column;
+        flex-wrap:nowrap;
+        align-content:center;
+        justify-content:center;
+        gap:10px;
+      }
+      .hand-rail .hand-piece {
+        width:50px;
+        height:50px;
+        min-width:0;
+        flex:0 0 50px;
+      }
+      @media (max-width:1240px) {
+        .board-layout {
+          display:block;
+          max-width:none;
+        }
+        .board-layout .board-card {
+          width:100%;
+        }
+        .hand-rail {
+          display:block;
+        }
+        .hand-rail-attacker {
+          margin-top:14px;
+        }
+        .hand-rail-defender {
+          margin-top:10px;
+        }
+        .hand-rail .hand-card {
+          height:auto;
+          min-height:68px;
+          display:block;
+          padding:11px 14px;
+        }
+        .hand-rail .hand-title {
+          text-align:left;
+        }
+        .hand-rail .hand-pieces {
+          min-height:46px;
+          display:flex;
+          flex-direction:row;
+          flex-wrap:wrap;
+          align-content:center;
+          justify-content:flex-start;
+        }
+        .hand-rail .hand-piece {
+          width:46px;
+          height:46px;
+          min-width:46px;
+          flex:0 0 46px;
+        }
+      }
+      @media (max-width:600px) {
+        .board-layout .board-card { padding:10px 10px 17px; }
+        .hand-rail .hand-card { padding:9px 10px; }
+        .hand-rail .hand-piece { width:40px; height:40px; min-width:40px; flex-basis:40px; font-size:19px; }
+      }
+    </style>
 </head>
 <body>
   <div class="app">
@@ -985,10 +1078,14 @@
           <div><h2 id="problemTitle">&#x51C6;&#x5907;&#x4E2D;&#x2026;</h2><div class="problem-meta"><span id="problemMeta"></span><span id="problemStatus"></span><span id="moveProgress"></span></div></div>
           <div class="problem-actions"><button id="markButton">☆ &#x6807;&#x8BB0;</button><button id="hintButton">&#x63D0;&#x793A;</button><button id="answerButton">&#x7B54;&#x6848;</button></div>
         </div>
+        <div class="board-layout">
+          <aside class="hand-rail hand-rail-attacker" aria-label="&#x653B;&#x65B9;&#x6301;&#x99D2;">
+            <div class="hand-card"><div class="hand-title">&#x653B;&#x65B9;&#x6301;&#x99D2;</div><div id="attackerHand" class="hand-pieces"></div></div>
+          </aside>
         <div class="board-card"><div id="board" aria-label="tsume board"></div><div id="promotionModal" class="modal" role="dialog" aria-modal="true" aria-label="&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;"><div class="modal-card"><h3>&#x9009;&#x62E9;&#x6210;&#x4E0E;&#x4E0D;&#x6210;</h3><div class="modal-actions"><button id="promoteButton" class="primary">&#x6210;&#x308B;</button><button id="noPromoteButton">&#x4E0D;&#x6210;</button></div></div></div><div id="resultModal" class="modal" role="status" aria-live="polite" aria-atomic="true"><div id="resultCard" class="modal-card result-card success"><div class="result-hero"><div id="resultIcon" class="result-icon">&#x2713;</div><div id="resultKicker" class="result-kicker">&#x8BAD;&#x7EC3;&#x5B8C;&#x6210;</div><h3 id="resultTitle">&#x901A;&#x5173;&#xFF01;</h3><p id="resultMessage" class="result-message"></p><div id="resultDetail" class="result-detail"></div></div></div></div></div>
-        <div class="hands">
-          <div class="hand-card"><div class="hand-title">&#x653B;&#x65B9;&#x6301;&#x99D2; · &#x70B9;&#x51FB;&#x843D;&#x5B50;</div><div id="attackerHand" class="hand-pieces"></div></div>
-          <div class="hand-card"><div class="hand-title">&#x7389;&#x65B9;&#x6301;&#x99D2;</div><div id="defenderHand" class="hand-pieces"></div></div>
+          <aside class="hand-rail hand-rail-defender" aria-label="&#x7389;&#x65B9;&#x6301;&#x99D2;">
+            <div class="hand-card"><div class="hand-title">&#x7389;&#x65B9;&#x6301;&#x99D2;</div><div id="defenderHand" class="hand-pieces"></div></div>
+          </aside>
         </div>
         <div class="actionbar"><button id="previousButton">&#x4E0A;&#x4E00;&#x9898;</button><button id="nextButton" class="primary">&#x4E0B;&#x4E00;&#x9898;</button><button id="undoButton">&#x6094;&#x68CB;</button><button id="restartButton">&#x91CD;&#x5F00;</button><button id="skipButton">&#x8DF3;&#x8FC7;</button><span class="spacer"></span><span id="turnHint" class="pill">&#x653B;&#x65B9;&#x56DE;&#x5408;</span></div>
         <div id="feedback" class="feedback">&#x8BF7;&#x9009;&#x62E9;&#x653B;&#x65B9;&#x7740;&#x624B;&#x3002;</div>
