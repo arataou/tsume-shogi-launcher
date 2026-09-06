@@ -2222,6 +2222,21 @@
 
     .modal.show { display: grid; }
 
+    #resultModal {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 14px;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #resultModal.show { display: grid; }
+    #resultModal .result-card,
+    #resultModal .result-card * { pointer-events: auto; }
+
     .modal-card {
       width: min(360px, calc(100vw - 32px));
       padding: 16px;
