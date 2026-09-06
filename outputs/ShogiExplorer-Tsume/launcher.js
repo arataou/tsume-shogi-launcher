@@ -45,7 +45,81 @@
   const same = (a, b) => Array.isArray(a) && Array.isArray(b) && a[0] === b[0] && a[1] === b[1];
   const coord = xy => `${xy[0]}${RANKS[xy[1]]}`;
   const dateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-  const makeProgress = () => ({ records:{}, streak:0, lastSolvedDate:'', history:[], activity:[], settings:{ bank:'curated', engineEnabled:true, strictSteps:false, sequenceMode:true, statsPeriod:'day' } });
+  const makeProgress = () => ({ records:{}, streak:0, lastSolvedDate:'', history:[], activity:[], settings:{ bank:'curated', engineEnabled:true, strictSteps:false, sequenceMode:true, statsPeriod:'day', soundEnabled:true } });
+
+  let audioContext = null;
+
+  function getAudioContext() {
+    if (settings?.soundEnabled === false || typeof window === 'undefined') return null;
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return null;
+    if (!audioContext) {
+      try { audioContext = new AudioContextCtor(); } catch (_) { return null; }
+    }
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    return audioContext;
+  }
+
+  function scheduleTone(context, { frequency, endFrequency=frequency, duration=.08, delay=0, volume=.018, type='sine' }) {
+    const start = context.currentTime + delay;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(Math.max(20, frequency), start);
+    if (endFrequency !== frequency) oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
+    gain.gain.setValueAtTime(.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0001, volume), start + .008);
+    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + .015);
+  }
+
+  function playSound(name) {
+    const context = getAudioContext();
+    if (!context) return;
+    if (name === 'select') {
+      scheduleTone(context, { frequency:520, endFrequency:420, duration:.055, volume:.014 });
+    } else if (name === 'move') {
+      scheduleTone(context, { frequency:180, endFrequency:128, duration:.12, volume:.032, type:'triangle' });
+      scheduleTone(context, { frequency:390, endFrequency:240, duration:.045, delay:.004, volume:.011 });
+    } else if (name === 'reply') {
+      scheduleTone(context, { frequency:132, endFrequency:105, duration:.14, volume:.025, type:'triangle' });
+      scheduleTone(context, { frequency:260, endFrequency:180, duration:.07, delay:.015, volume:.009 });
+    } else if (name === 'error') {
+      scheduleTone(context, { frequency:250, endFrequency:170, duration:.11, volume:.022, type:'triangle' });
+      scheduleTone(context, { frequency:150, endFrequency:110, duration:.16, delay:.07, volume:.016 });
+    } else if (name === 'hint') {
+      scheduleTone(context, { frequency:440, duration:.08, volume:.014 });
+      scheduleTone(context, { frequency:660, duration:.11, delay:.07, volume:.012 });
+    } else if (name === 'success') {
+      [392, 494, 659].forEach((frequency, index) => scheduleTone(context, { frequency, duration:.22, delay:index * .065, volume:.014 }));
+    } else if (name === 'undo') {
+      scheduleTone(context, { frequency:300, endFrequency:210, duration:.09, volume:.014, type:'triangle' });
+    } else if (name === 'restart') {
+      scheduleTone(context, { frequency:260, endFrequency:190, duration:.1, volume:.014 });
+    } else if (name === 'toggle') {
+      scheduleTone(context, { frequency:500, endFrequency:620, duration:.06, volume:.012 });
+    }
+  }
+
+  function replayMotion(element, className, duration=460) {
+    if (!element) return;
+    element.classList.remove(className);
+    requestAnimationFrame(() => {
+      element.classList.add(className);
+      window.setTimeout(() => element.classList.remove(className), duration);
+    });
+  }
+
+  function setTextWithMotion(element, value) {
+    if (!element) return;
+    const next = String(value);
+    const changed = element.textContent !== next;
+    element.textContent = next;
+    if (changed) replayMotion(element, 'value-change', 300);
+  }
 
   function normalizeProgress(value) {
     const base = makeProgress();
@@ -259,12 +333,12 @@
       }
     }
     $('periodCaption').textContent=periodName(period) + ' · ' + range;
-    $('periodSolved').textContent=summary.solved;
-    $('periodAttempts').textContent=summary.attempts;
-    $('periodWrong').textContent=summary.wrong;
-    $('periodFailed').textContent=summary.failed;
-    $('periodRate').textContent=summary.attempts ? Math.round(summary.solved / summary.attempts * 100) + '%' : '—';
-    $('periodAverage').textContent=summary.solved ? Math.round(summary.seconds / summary.solved) + 's' : '—';
+    setTextWithMotion($('periodSolved'), summary.solved);
+    setTextWithMotion($('periodAttempts'), summary.attempts);
+    setTextWithMotion($('periodWrong'), summary.wrong);
+    setTextWithMotion($('periodFailed'), summary.failed);
+    setTextWithMotion($('periodRate'), summary.attempts ? Math.round(summary.solved / summary.attempts * 100) + '%' : '—');
+    setTextWithMotion($('periodAverage'), summary.solved ? Math.round(summary.seconds / summary.solved) + 's' : '—');
     renderActivityHistory(events);
   }
 
@@ -277,7 +351,7 @@
     puzzle:null, board:null, hands:null, solutionIndex:0,
     selectedFrom:null, selectedDrop:null, pendingMove:null,
     startedAt:0, pausedAt:0, pausedMs:0, paused:false, timer:null,
-    solved:false, locked:false, enginePending:false, answerShown:false, answerReplay:null, hintShown:false, resultType:null,
+    solved:false, locked:false, enginePending:false, answerShown:false, answerReplay:null, hintShown:false, resultType:null, lastMove:null,
     sequenceMode:settings.sequenceMode === true, markedOnly:false, wrongOnly:false, attemptedMoves:0, failTimer:null, undoStack:[], token:0
   };
 
@@ -344,7 +418,13 @@
     });
   }
   function allMoves() { return solutionMoveTexts(state.puzzle).join('\u3000'); }
-  function setFeedback(text, kind='') { const el=$('feedback'); el.className='feedback' + (kind ? ` ${kind}` : ''); el.innerHTML=text; }
+  function setFeedback(text, kind='') {
+    const el = $('feedback');
+    if (!el) return;
+    el.className = 'feedback' + (kind ? ` ${kind}` : '');
+    el.innerHTML = text;
+    replayMotion(el, 'is-changing', 300);
+  }
   function collectionName(p) { return (p.collection || 'curated') === 'expanded' ? '\u6269\u5C55\u96C6' : '\u7CBE\u9009\u96C6'; }
   function qualityName(p) { return p.quality === 'validated' ? '\u5DF2\u6821\u9A8C' : '\u6269\u5C55\u9898'; }
   function bankMatches(p) { return state.bank === 'all' || (p.collection || 'curated') === state.bank; }
@@ -413,6 +493,8 @@
   function renderSettings() {
     $('engineToggle').checked = settings.engineEnabled !== false;
     $('strictSteps').checked = Boolean(settings.strictSteps);
+    $('soundToggle').checked = settings.soundEnabled !== false;
+    $('soundStatus').textContent = settings.soundEnabled === false ? '已关闭' : '已开启';
     $('limitHint').textContent = settings.strictSteps
       ? '\u624B\u6570\u9650\u5236\uFF1A\u6700\u591A ' + attackLimit(state.puzzle || { solution:[], mateLength:state.length }) + ' \u6B21\u6709\u6548\u7740\u6CD5\uFF0C\u9519\u8BEF\u5C1D\u8BD5\u548C\u6094\u68CB\u4E0D\u8BA1\uFF0C\u8D85\u9650\u91CD\u5F00\u3002'
       : '\u5224\u5B9A\uFF1A\u738B\u624B\uFF0B\u624B\u6570\u3002\u5F15\u64CE\u4EC5\u8D1F\u8D23\u7389\u65B9\u5E94\u624B\u3002';
@@ -446,7 +528,7 @@
     state.token++;
     state.puzzle = p; state.length = Number(p.mateLength); state.solutionIndex = 0;
     state.selectedFrom = null; state.selectedDrop = null; state.pendingMove = null;
-    state.solved = false; state.locked = false; state.enginePending = false; state.answerShown = false; state.answerReplay = null; state.hintShown = false; state.resultType = null;
+    state.solved = false; state.locked = false; state.enginePending = false; state.answerShown = false; state.answerReplay = null; state.hintShown = false; state.resultType = null; state.lastMove = null;
     state.attemptedMoves = 0; state.undoStack = []; state.paused = false; state.pausedAt = 0; state.pausedMs = 0;
     const position=puzzlePosition(p);
     state.board = position.board;
@@ -461,6 +543,7 @@
     $('problemStatus').textContent = rec.solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
     $('turnHint').textContent = '\u653B\u65B9\u56DE\u5408';
     updatePracticeModeUI(); updateMarkButton(); updateBankUI(); renderSettings(); setFeedback(TEXT.choose); populateList(); renderAll();
+    replayMotion(document.querySelector('.board-card'), 'puzzle-enter', 420);
   }
 
   function poolForMode() { return filteredPuzzles(); }
@@ -522,8 +605,22 @@
   }
 
   function renderBoard() {
-    const el = $('board'); el.innerHTML = '';
+    const el = $('board');
+    if (!el) return;
+    const boardCard = el.closest('.board-card');
+    const waiting = Boolean(state.enginePending && !state.answerShown);
+    boardCard?.classList.toggle('is-thinking', waiting);
+    boardCard?.setAttribute('aria-busy', String(waiting));
+    const boardStatus = $('boardStatus');
+    if (boardStatus) {
+      boardStatus.hidden = !waiting;
+      boardStatus.classList.toggle('is-visible', waiting);
+      $('boardStatusText')?.replaceChildren(document.createTextNode(waiting ? '等待玉方应手' : ''));
+    }
+    $('turnHint')?.classList.toggle('is-thinking', waiting);
+    el.innerHTML = '';
     const position=renderedPosition();
+    const moveToAnimate = state.lastMove;
     const hintMove=!state.answerShown && state.hintShown ? expected() : null;
     const replayMove=state.answerShown && state.answerReplay?.index > 0
       ? state.puzzle?.solution?.[state.answerReplay.index - 1]
@@ -544,11 +641,13 @@
       const piece = position.board?.[y]?.[x];
       if (piece) {
         const text = document.createElement('span'); text.className='piece' + (piece.owner === 'defender' ? ' gote' : '') + (piece.promoted ? ' promoted' : '');
+        if (moveToAnimate && moveToAnimate.owner === piece.owner && same(moveToAnimate.to, [x,y])) text.classList.add('piece-arrive');
         text.textContent = piece.promoted ? (PROMOTED[piece.type] || LABELS[piece.type]) : LABELS[piece.type];
         cell.appendChild(text);
       }
       el.appendChild(cell);
     }
+    if (moveToAnimate) requestAnimationFrame(() => { if (state.lastMove === moveToAnimate) state.lastMove = null; });
   }
 
   function renderHands() {
@@ -560,7 +659,7 @@
         const button = document.createElement('button'); button.className='hand-piece' + (owner === 'attacker' && state.selectedDrop === type ? ' active' : ''); button.textContent=LABELS[type];
         button.title = owner === 'attacker' ? '\u9009\u62E9\u540E\u70B9\u51FB\u76EE\u6807\u683C' : '\u7389\u65B9\u6301\u99D2';
         const countEl=document.createElement('span'); countEl.className='count'; countEl.textContent=count; button.appendChild(countEl);
-        if (owner === 'attacker' && !state.answerShown) button.addEventListener('click', () => { if (state.locked || state.solved) return; state.selectedDrop = state.selectedDrop === type ? null : type; state.selectedFrom=null; setFeedback(state.selectedDrop ? '已选' + LABELS[type] + '，请点目标格。' : '已取消持駒。'); renderAll(); });
+        if (owner === 'attacker' && !state.answerShown) button.addEventListener('click', () => { if (state.locked || state.solved) return; state.selectedDrop = state.selectedDrop === type ? null : type; state.selectedFrom=null; playSound('select'); setFeedback(state.selectedDrop ? '已选' + LABELS[type] + '，请点目标格。' : '已取消持駒。'); renderAll(); });
         else button.disabled=true;
         el.appendChild(button);
       }
@@ -631,7 +730,7 @@
     const wrong = all.filter(x => Number(x.r.wrong || 0) > 0).length;
     const failed = all.reduce((n,x) => n + Number(x.r.failed || 0), 0);
     const best = all.map(x => Number(x.r.bestSeconds || 0)).filter(Boolean).sort((a,b) => a-b)[0];
-    $('solvedCount').textContent=solved; $('attemptCount').textContent=attempts; $('markedCount').textContent=marked; $('markedSolvedCount').textContent=markedSolved; $('wrongCount').textContent=wrong; $('failedCount').textContent=failed; $('streakCount').textContent=progress.streak || 0; $('bestTime').textContent=best ? `${best}s` : '\u2014';
+    setTextWithMotion($('solvedCount'), solved); setTextWithMotion($('attemptCount'), attempts); setTextWithMotion($('markedCount'), marked); setTextWithMotion($('markedSolvedCount'), markedSolved); setTextWithMotion($('wrongCount'), wrong); setTextWithMotion($('failedCount'), failed); setTextWithMotion($('streakCount'), progress.streak || 0); setTextWithMotion($('bestTime'), best ? `${best}s` : '\u2014');
     const current=all.filter(x => Number(x.p.mateLength)===state.length && bankMatches(x.p));
     const currentSolved=current.filter(x => x.r.solved).length;
     $('lengthProgress').max=Math.max(1,current.length); $('lengthProgress').value=currentSolved; $('lengthProgressText').textContent=`${currentSolved} / ${current.length}`;
@@ -671,12 +770,12 @@
     if (!state.puzzle || state.answerShown || state.solved || state.locked) return;
     if (state.selectedDrop) { attempt({drop:state.selectedDrop,to:[x,y],promote:false}); return; }
     const piece=state.board[y][x];
-    if (!state.selectedFrom) { if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); } return; }
-    if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); return; }
+    if (!state.selectedFrom) { if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; playSound('select'); setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); } return; }
+    if (piece?.owner === 'attacker') { state.selectedFrom=[x,y]; playSound('select'); setFeedback('已选' + LABELS[piece.type] + '，请选目标格。'); renderBoard(); return; }
     const pendingMove={from:state.selectedFrom,to:[x,y]};
     const selectable=selectableMove(pendingMove);
     if (!selectable.ok) {
-      state.selectedFrom=null; state.pendingMove=null; setFeedback(selectable.message,'bad'); renderBoard(); return;
+      state.selectedFrom=null; state.pendingMove=null; playSound('error'); setFeedback(selectable.message,'bad'); renderBoard(); return;
     }
     state.pendingMove=pendingMove; state.selectedFrom=null;
     const option=promotionOption(state.pendingMove); if (option==='choice') showPromotion(); else attempt({...state.pendingMove,promote:option==='force'});
@@ -773,11 +872,12 @@
   function undo() {
     if (!state.puzzle || state.answerShown || state.locked || !state.undoStack.length) return;
     const wasSolved=state.solved || state.resultType === 'solved';
+    playSound('undo');
     closeResultModal();
     const snapshot=state.undoStack.pop();
     state.board=snapshot.board; state.hands=snapshot.hands; state.solutionIndex=snapshot.solutionIndex;
     state.attemptedMoves=Number.isFinite(snapshot.attemptedMoves) ? snapshot.attemptedMoves : Math.max(0,Math.ceil((snapshot.solutionIndex || 0) / 2));
-    state.solved=false; state.resultType=null; state.locked=false; state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.token++;
+    state.solved=false; state.resultType=null; state.locked=false; state.answerShown=false; state.answerReplay=null; state.hintShown=Boolean(snapshot.hintShown); state.selectedFrom=null; state.selectedDrop=null; state.pendingMove=null; state.enginePending=false; state.lastMove=null; state.token++;
     if (wasSolved) resumeTimer();
     $('problemStatus').textContent=record(state.puzzle).solved ? '\u5DF2\u5B8C\u6210\u00B7\u53EF\u91CD\u5237' : '\u672A\u5B8C\u6210';
     $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
@@ -791,7 +891,7 @@
       setFeedback('\u7389\u65B9\u5E94\u624B\u65E0\u6548\uFF0C\u8BF7\u91CD\u5F00\u3002','bad'); renderAll(); return;
     }
     const moveText=formatKifuMove(move,'defender',{board:state.board});
-    applyMove(move,'defender'); state.solutionIndex++; state.locked=false; state.enginePending=false;
+    applyMove(move,'defender'); state.solutionIndex++; state.locked=false; state.enginePending=false; state.lastMove={ owner:'defender', to:[...move.to] }; playSound('reply');
     $('turnHint').textContent='\u653B\u65B9\u56DE\u5408';
     const suffix=detail ? ` ${detail}` : '';
     setFeedback(usedEngine ? `\u7389\u65B9\u5E94\u624B\uFF08\u5F15\u64CE\uFF09\uFF1A${moveText}\u3002${suffix}` : `\u7389\u65B9\u5E94\u624B\uFF1A${moveText}\u3002${suffix}`);
@@ -874,7 +974,7 @@
     const rule=validateAttack(move);
     if (!rule.ok) {
       const rec=record(puzzle); rec.wrong++; rec.lastPlayed=Date.now(); logActivity('wrong', puzzle); saveProgress();
-      setFeedback(rule.message,'bad'); flashWrong(move); renderAll(); return;
+      playSound('error'); setFeedback(rule.message,'bad'); flashWrong(move); renderAll(); return;
     }
     const nextAttempt=state.attemptedMoves + 1;
     if (settings.strictSteps && nextAttempt > attackLimit(puzzle)) { failPuzzle(TEXT.overLimit); return; }
@@ -882,7 +982,7 @@
     state.undoStack.push(snapshot);
     state.attemptedMoves=nextAttempt;
     const moveText=formatKifuMove(move,'attacker',{board:snapshot.board});
-    applyMove(move,'attacker'); state.solutionIndex++; state.hintShown=false; setFeedback(TEXT.correct + moveText + '\u3002','good');
+    applyMove(move,'attacker'); state.solutionIndex++; state.hintShown=false; state.lastMove={ owner:'attacker', to:[...move.to] }; playSound('move'); setFeedback(TEXT.correct + moveText + '\u3002','good');
     const fallback=state.solutionIndex<Number(puzzle.mateLength) ? clone(expected()) : null;
     const token=state.token;
     engineReply(currentSfen(),fallback,puzzle,token);
@@ -890,7 +990,7 @@
 
   function complete() {
     const p=state.puzzle, rec=record(p); if (state.solved) return;
-    const seconds=elapsedSeconds(); state.solved=true; state.locked=false; state.enginePending=false; rec.solved=true; rec.solvedAt=Date.now(); rec.seconds=seconds; rec.bestSeconds=rec.bestSeconds ? Math.min(rec.bestSeconds,seconds) : seconds;
+    const seconds=elapsedSeconds(); state.solved=true; state.locked=false; state.enginePending=false; rec.solved=true; rec.solvedAt=Date.now(); rec.seconds=seconds; rec.bestSeconds=rec.bestSeconds ? Math.min(rec.bestSeconds,seconds) : seconds; playSound('success');
     const today=dateKey(); if (progress.lastSolvedDate!==today) { const yesterday=dateKey(new Date(Date.now()-86400000)); progress.streak=progress.lastSolvedDate===yesterday ? Number(progress.streak||0)+1 : 1; progress.lastSolvedDate=today; }
     pushHistory(p,'solved'); logActivity('solved',p,{seconds:seconds}); saveProgress(); pauseTimer();
     state.resultType='solved'; $('problemStatus').textContent='\u5DF2\u5B8C\u6210'; $('turnHint').textContent='\u5DF2\u5B8C\u6210'; setFeedback('\u5B8C\u6210\uFF01 #' + p.id + ' \u00B7 ' + p.mateLength + '\u624B\u3002','good'); renderAll(); showResultModal();
@@ -898,7 +998,7 @@
 
   function hint() {
     const e=expected(); if (!e || state.answerShown || state.solved || state.locked || state.resultType) return;
-    state.hintShown=true;
+    state.hintShown=true; playSound('hint');
     const rec=record(state.puzzle); rec.hints++; rec.lastPlayed=Date.now(); saveProgress();
     setFeedback(e.drop ? '提示：' + coord(e.to) + ' 打。' : '提示：' + coord(e.from) + ' → ' + coord(e.to) + (e.promote ? '（成）' : '')); renderAll();
   }
@@ -907,14 +1007,14 @@
     const moves=state.puzzle.solution || [];
     const target=Math.max(0,Math.min(moves.length,state.answerReplay.index + direction));
     if (target===state.answerReplay.index) return;
-    state.answerReplay=buildAnswerReplay(state.puzzle,target);
+    state.answerReplay=buildAnswerReplay(state.puzzle,target); playSound(direction > 0 ? 'move' : 'undo');
     setFeedback(target===0 ? '已回到题面初始局面。' : target===moves.length ? '参考棋谱已推演完。' : `棋谱回放：第 ${target} 手。`);
     renderAll();
   }
   function answer() {
     if (!state.puzzle) return;
     if (state.answerShown) {
-      state.answerShown=false; state.answerReplay=null;
+      state.answerShown=false; state.answerReplay=null; state.lastMove=null; playSound('select');
       if (!state.solved && !state.resultType && !state.locked) resumeTimer();
       $('turnHint').textContent=state.solved ? '已完成' : state.resultType ? '请重开' : state.locked ? '需要玉方应手' : '攻方回合';
       setFeedback('已返回当前解题局面。');
@@ -925,15 +1025,15 @@
       setFeedback('请等待玉方应手完成后再查看答案。','pending');
       return;
     }
-    const rec=record(state.puzzle); rec.answerShown++; rec.lastPlayed=Date.now(); state.answerShown=true; state.answerReplay=buildAnswerReplay(state.puzzle,0); state.selectedFrom=null; state.selectedDrop=null; closePromotion(); pauseTimer(); saveProgress(); $('turnHint').textContent='答案回放'; setFeedback('参考棋谱已显示，点击 &lt; / &gt; 自动推演。'); renderAll();
+    const rec=record(state.puzzle); rec.answerShown++; rec.lastPlayed=Date.now(); state.answerShown=true; state.answerReplay=buildAnswerReplay(state.puzzle,0); state.selectedFrom=null; state.selectedDrop=null; state.lastMove=null; closePromotion(); pauseTimer(); saveProgress(); playSound('select'); $('turnHint').textContent='答案回放'; setFeedback('参考棋谱已显示，点击 &lt; / &gt; 自动推演。'); renderAll();
   }
   function toggleMark() {
-    if (!state.puzzle) return; const rec=record(state.puzzle); rec.marked=!rec.marked; saveProgress(); updateMarkButton(); populateList(); renderStats(); setFeedback(rec.marked ? '\u5DF2\u6807\u8BB0\u3002\u53EF\u4ECE\u6807\u8BB0\u91CD\u5237\u8FDB\u5165\u3002' : '\u5DF2\u53D6\u6D88\u6807\u8BB0\u3002');
+    if (!state.puzzle) return; const rec=record(state.puzzle); rec.marked=!rec.marked; saveProgress(); playSound('toggle'); updateMarkButton(); populateList(); renderStats(); setFeedback(rec.marked ? '\u5DF2\u6807\u8BB0\u3002\u53EF\u4ECE\u6807\u8BB0\u91CD\u5237\u8FDB\u5165\u3002' : '\u5DF2\u53D6\u6D88\u6807\u8BB0\u3002');
   }
   function updateMarkButton() { const marked=state.puzzle && record(state.puzzle).marked; $('markButton').textContent=marked ? '★ \u5DF2\u6807\u8BB0' : '☆ \u6807\u8BB0'; }
-  function restart() { if (state.puzzle) prepare(state.puzzle,true); }
+  function restart() { if (state.puzzle) { playSound('restart'); prepare(state.puzzle,true); } }
   function skip() {
-    if (!state.puzzle) return; const p=state.puzzle, rec=record(p); rec.skipped++; rec.lastPlayed=Date.now(); pushHistory(p,'skipped'); logActivity('skipped',p); saveProgress(); const next=navigatePuzzle(1); if (next) setFeedback('\u5DF2\u8DF3\u8FC7\u3002');
+    if (!state.puzzle) return; const p=state.puzzle, rec=record(p); rec.skipped++; rec.lastPlayed=Date.now(); pushHistory(p,'skipped'); logActivity('skipped',p); saveProgress(); playSound('select'); const next=navigatePuzzle(1); if (next) setFeedback('\u5DF2\u8DF3\u8FC7\u3002');
   }
   function markedRandom() { state.markedOnly=true; state.wrongOnly=false; populateList(); if (!filteredPuzzles().length) { state.markedOnly=false; populateList(); setFeedback(TEXT.noMarked,'bad'); return; } randomPuzzle(); }
   function wrongRandom() { state.wrongOnly=true; state.markedOnly=false; populateList(); if (!filteredPuzzles().length) { state.wrongOnly=false; populateList(); setFeedback(TEXT.noWrong,'bad'); return; } randomPuzzle(); }
@@ -965,6 +1065,7 @@
     $('restartButton').addEventListener('click', restart); $('undoButton').addEventListener('click', undo); $('skipButton').addEventListener('click', skip); $('hintButton').addEventListener('click', hint); $('answerButton').addEventListener('click', answer); $('answerPreviousButton').addEventListener('click', () => stepAnswer(-1)); $('answerNextButton').addEventListener('click', () => stepAnswer(1)); $('markButton').addEventListener('click', toggleMark); $('resetButton').addEventListener('click', reset);
     $('noPromoteButton').addEventListener('click', () => tryPromotion(false)); $('promoteButton').addEventListener('click', () => tryPromotion(true));
     $('engineToggle').addEventListener('change', event => { settings.engineEnabled=event.target.checked; saveSetting(); if (!settings.engineEnabled) setEngineStatus('off','\u5DF2\u5173\u95ED'); else { checkEngine(); } });
+    $('soundToggle').addEventListener('change', event => { settings.soundEnabled=event.target.checked; saveSetting(); renderSettings(); if (settings.soundEnabled) playSound('toggle'); });
     $('strictSteps').addEventListener('change', event => { settings.strictSteps=event.target.checked; saveSetting(); renderSettings(); });
     document.addEventListener('keydown', event => {
       if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;

@@ -2347,6 +2347,207 @@
       .settings-panel .setting-row { grid-template-columns: auto minmax(0, 1fr); }
       .settings-panel .setting-row small { grid-column: 2; text-align: left; }
     }
+
+    /* 交互反馈：短、克制，只强调当前动作和状态变化。 */
+    .app { animation: app-enter .32s cubic-bezier(.22, .8, .22, 1) both; }
+
+    button {
+      transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(31, 35, 40, .08); }
+    button:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+
+    .panel,
+    .problem-head,
+    .board-card,
+    .feedback,
+    .answer-panel {
+      transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+    }
+
+    .board-card {
+      width: 100%;
+      min-width: 0;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .board-layout { width: 100%; min-width: 0; }
+
+    .board-card::before {
+      content: "";
+      position: absolute;
+      left: 20%;
+      right: 20%;
+      bottom: 28px;
+      height: 1px;
+      border-radius: 1px;
+      background: rgba(9, 105, 218, .26);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .board-card.is-thinking {
+      border-color: #8eb9ca;
+      box-shadow: 0 2px 4px rgba(31, 35, 40, .16), 0 0 0 3px rgba(9, 105, 218, .06);
+    }
+
+    .board-card.is-thinking::before {
+      opacity: 1;
+      animation: thinking-line 1.5s ease-in-out infinite;
+    }
+
+    #board {
+      width: 100%;
+      max-width: 620px;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      grid-template-rows: repeat(9, minmax(0, 1fr));
+      min-width: 0;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .cell { transition: background-color .16s ease, box-shadow .16s ease; }
+
+    .piece {
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    }
+
+    .cell:hover .piece:not(.gote) { transform: translateY(-1px); }
+    .cell:hover .piece.gote { transform: rotate(180deg) translateY(-1px); }
+
+    .piece.piece-arrive { animation: piece-arrive .28s cubic-bezier(.22, .8, .22, 1) both; }
+    .piece.gote.piece-arrive { animation-name: piece-arrive-gote; }
+
+    .board-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 16px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .01em;
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+
+    .board-status[hidden] { display: none; }
+    .board-status.is-visible { opacity: 1; transform: translateY(0); animation: board-status-in .2s ease-out both; }
+
+    .board-status-dot {
+      width: 6px;
+      height: 6px;
+      flex: 0 0 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, .1);
+      animation: status-pulse 1.4s ease-in-out infinite;
+    }
+
+    #turnHint { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+    #turnHint.is-thinking { border-color: #c5ddea; color: #286581; background: #eef7fb; }
+    #turnHint.is-thinking::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: status-pulse 1.4s ease-in-out infinite;
+    }
+
+    .feedback.is-changing { animation: feedback-enter .2s ease-out both; }
+    .board-card.puzzle-enter { animation: board-enter .28s cubic-bezier(.22, .8, .22, 1) both; }
+    .value-change { animation: value-change .24s ease-out both; }
+    .answer-panel:not([hidden]) { animation: panel-enter .18s ease-out both; }
+    .modal.show .modal-card { animation: modal-enter .22s cubic-bezier(.22, .8, .22, 1) both; }
+    #promotionModal.show .modal-card { animation: promotion-enter .14s ease-out both; }
+
+    @keyframes app-enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes board-enter {
+      from { opacity: .68; transform: translateY(5px) scale(.995); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes feedback-enter {
+      from { opacity: .45; transform: translateY(-2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes panel-enter {
+      from { opacity: .55; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes modal-enter {
+      from { opacity: 0; transform: translateY(6px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes promotion-enter {
+      from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(.96); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    }
+
+    @keyframes piece-arrive {
+      0% { opacity: 0; transform: translateY(-5px) scale(.9); }
+      65% { opacity: 1; transform: translateY(1px) scale(1.04); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes piece-arrive-gote {
+      0% { opacity: 0; transform: rotate(180deg) translateY(-5px) scale(.9); }
+      65% { opacity: 1; transform: rotate(180deg) translateY(1px) scale(1.04); }
+      100% { opacity: 1; transform: rotate(180deg) translateY(0) scale(1); }
+    }
+
+    @keyframes board-status-in {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes thinking-line {
+      0%, 100% { transform: scaleX(.55); opacity: .25; }
+      50% { transform: scaleX(1); opacity: .85; }
+    }
+
+    @keyframes status-pulse {
+      0%, 100% { opacity: .45; transform: scale(.85); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes value-change {
+      from { opacity: .5; transform: translateY(2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 900px) {
+      html, body, .app { width: 100%; max-width: 100%; min-width: 0; }
+      .layout { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    @media (max-width: 760px) {
+      .board-layout { grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+      .board-card { max-width: calc(100vw - 24px); overflow: hidden; }
+      .layout { width: 100%; max-width: 100vw; min-width: 0; overflow-x: hidden; }
+      .workspace { width: 100%; max-width: 100%; min-width: 0; }
+      #board { width: calc(100vw - 44px); max-width: calc(100vw - 44px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2427,6 +2628,7 @@
           <h2>&#x8BBE;&#x7F6E;</h2>
           <div class="setting-row storage-row"><span>&#x8BAD;&#x7EC3;&#x8BB0;&#x5F55;</span><small id="storageStatus">&#x672C;&#x673A;&#x6587;&#x4EF6;&#x8BFB;&#x53D6;&#x4E2D;</small></div>
           <label class="setting-row"><input id="engineToggle" type="checkbox" checked><span>&#x7389;&#x65B9;&#x5F15;&#x64CE;&#x5E94;&#x624B;</span><small id="engineStatus">&#x68C0;&#x6D4B;&#x4E2D;</small></label>
+          <label class="setting-row"><input id="soundToggle" type="checkbox" checked><span>&#x97F3;&#x6548;&#x53CD;&#x9988;</span><small id="soundStatus">&#x5DF2;&#x5F00;&#x542F;</small></label>
           <label class="setting-row"><input id="strictSteps" type="checkbox"><span>&#x624B;&#x6570;&#x9650;&#x5236;</span><small>&#x8D85;&#x9650;&#x91CD;&#x5F00;</small></label>
           <p class="note" id="limitHint">&#x5224;&#x5B9A;&#xFF1A;&#x738B;&#x624B;&#xFF0B;&#x624B;&#x6570;&#x3002;&#x5F15;&#x64CE;&#x53EA;&#x8D1F;&#x8D23;&#x7389;&#x65B9;&#x5E94;&#x624B;&#x3002;</p>
         </section>
@@ -2442,6 +2644,7 @@
           </aside>
          <div class="board-card">
            <div id="board" aria-label="tsume board"></div>
+           <div id="boardStatus" class="board-status" hidden aria-live="polite"><span class="board-status-dot" aria-hidden="true"></span><span id="boardStatusText"></span></div>
            <div id="promotionModal" class="modal" role="dialog" aria-modal="true" aria-label="&#x6210;&#x308A;&#x306E;&#x9078;&#x629E;"><div class="modal-card"><div class="modal-actions"><button id="promoteButton" class="primary" aria-label="&#x6210;&#x308B;">&#x6210;&#x308B;</button><button id="noPromoteButton" aria-label="&#x4E0D;&#x6210;">&#x4E0D;&#x6210;</button></div></div></div>
            <div id="resultModal" class="modal" role="status" aria-live="polite" aria-atomic="true"><div id="resultCard" class="modal-card result-card success"><div class="result-hero"><div id="resultIcon" class="result-icon">&#x2713;</div><div id="resultKicker" class="result-kicker">&#x8BAD;&#x7EC3;&#x5B8C;&#x6210;</div><h3 id="resultTitle">&#x901A;&#x5173;&#xFF01;</h3><p id="resultMessage" class="result-message"></p><div id="resultDetail" class="result-detail"></div><div class="result-actions"><button id="nextResultButton" class="primary">&#x4E0B;&#x4E00;&#x9898;</button></div></div></div></div>
          </div>
