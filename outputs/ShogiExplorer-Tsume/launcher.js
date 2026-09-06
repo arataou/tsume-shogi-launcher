@@ -344,7 +344,6 @@
 
   let engineAvailable = false;
   let engineChecked = false;
-  let resultTimer = null;
   let state = {
     length:5,
     bank:['curated','expanded','all'].includes(settings.bank) ? settings.bank : 'curated',
@@ -460,7 +459,6 @@
   }
 
   function closeResultModal() {
-    if (resultTimer) { clearTimeout(resultTimer); resultTimer=null; }
     $('resultModal')?.classList.remove('show');
   }
   function showResultModal() {
@@ -474,9 +472,7 @@
     $('resultTitle').textContent='\u901A\u5173\uFF01';
     $('resultMessage').textContent=`#${p.id} \u00B7 ${p.mateLength}\u624B\u9898\u76EE\u5DF2\u5B8C\u6210`;
     $('resultDetail').textContent=`\u7528\u65F6 ${formatDuration(elapsedSeconds())} \u00B7 \u6210\u7EE9\u5DF2\u8BB0\u5165\u8BAD\u7EC3\u8BB0\u5F55`;
-    if (resultTimer) clearTimeout(resultTimer);
     modal.classList.add('show');
-    resultTimer=setTimeout(() => { resultTimer=null; closeResultModal(); },3600);
   }
 
   function setEngineStatus(mode, text) {
