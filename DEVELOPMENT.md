@@ -30,7 +30,7 @@
 
 ## 2. 分支与多窗口协作
 
-功能、修复和文档分别使用短生命周期分支：
+功能、修复和文档分别使用短生命周期分支，按任务类型选择分支前缀，不再额外添加工具专属前缀：
 
 - `feature/<主题>`：新增用户功能；
 - `fix/<主题>`：缺陷修复；
@@ -41,7 +41,7 @@
 
 ```powershell
 git fetch origin
-git worktree add .\.worktrees\<task-slug> -b codex/<task-slug> origin/main
+git worktree add .\.worktrees\<task-slug> -b docs/<主题> origin/main
 ```
 
 多个窗口同时开发时，必须为每个分支使用独立的 Git worktree 或独立的仓库副本。例如：
@@ -58,7 +58,7 @@ git worktree add .\.worktrees\<task-slug> -b fix/<主题> origin/main
 1. 各窗口只处理已分配的目标和文件；
 2. 每个窗口完成本地测试后提交自己的分支；
 3. 通过 PR 一次只合并一个分支，先处理冲突，再运行必要回归；不在 PR 前重复做一次本地 `main` 合并；
-4. 合并完成后再删除临时 worktree 和已完成分支，不删除仍有未提交改动的目录。
+4. 合并完成后默认保留临时 worktree 和已完成分支；只有用户明确要求，并确认目录没有未提交改动且不再被其他窗口使用时，才进行清理。
 
 用户明确提出的小功能和范围明确的小缺陷修复，验证通过后自动推送分支、创建 Pull Request 并合并到 `main`。如果权限、冲突、检查失败或其他外部条件阻止该流程，应停在安全位置并说明原因；未经用户明确要求，不删除原始 worktree。
 
@@ -75,12 +75,12 @@ D:\个人开发软件\诘将棋启动器\outputs\ShogiExplorer-Tsume
 1. 在根目录 worktree 检查 `git status --short --branch`，确认没有用户或其他窗口的未提交改动；
 2. 确认 `outputs/ShogiExplorer-Tsume` 是当前仓库根目录下的目标目录，并从已合并的 `main` 安全 fast-forward；
 3. 禁止用 `reset`、`clean`、`stash`、强制覆盖复制或删除来处理冲突。发现分叉、脏工作区、路径不一致或运行中的其他版本时，先停下并报告；
-4. 同步后确认 `TsumeLauncher.html`、`launcher.js`、`puzzle-data.js`、`server.ps1`、`Start.bat`、`engines` 和 `puzzles` 仍存在，再运行 `node --check .\outputs\ShogiExplorer-Tsume\launcher.js` 和适用的启动/服务检查；
+4. 同步后确认 `TsumeLauncher.html`、`launcher.js`、`puzzle-data.js`、`server.ps1`、`engines` 和 `puzzles` 仍存在，再运行 `node --check .\outputs\ShogiExplorer-Tsume\launcher.js` 和适用的启动/服务检查；
 5. 普通源码同步不自动替换 `TsumeLauncher.exe` 或生成/覆盖 `ShogiExplorer-Tsume-Full.zip`。宿主从自身目录启动 `server.ps1`，页面和题库由该目录提供，因此前端源码更新后可以复用现有 EXE，但仍需做一次启动冒烟；如果改动宿主、服务、引擎或打包逻辑，必须走完整发布验收。
 
 同步必须遵守以下兼容性约束：
 
-- 不改变 `outputs/ShogiExplorer-Tsume` 内现有文件和目录的名称、相对路径及 `Start.bat` 入口；
+- 不改变 `outputs/ShogiExplorer-Tsume` 内现有文件和目录的名称及相对路径；`TsumeLauncher.exe` 是唯一启动入口；
 - 不改变 `%LOCALAPPDATA%\TsumeLauncher\training-data.json`、`mateLength:id` 题目主键和已有 `progress` / `ProgressRecord` 字段；
 - 新增 `settings` 或记录字段必须有默认值和归一化逻辑，读取旧 JSON 时保留未知字段，不能通过同步或启动清空用户训练记录；
 - 发行物与源码分开验收：只有明确进入发布批次时，才重新构建宿主、替换 EXE、生成 ZIP，并从全新解压目录验证启动、记录读写和引擎回退。
@@ -127,9 +127,9 @@ git diff --check
 3. 宿主程序 Release 发布；
 4. 关闭正在运行的旧 EXE 后替换 `outputs/ShogiExplorer-Tsume/TsumeLauncher.exe`；
 5. 运行 `build-release.ps1` 生成完整 ZIP；
-6. 检查 ZIP 中存在 `TsumeLauncher.exe`、`Start.bat`、题库和引擎，且不存在已删除的浏览器入口；
+6. 检查 ZIP 中存在 `TsumeLauncher.exe`、题库和引擎，且不存在已删除的浏览器或脚本入口；
 7. 从干净解压目录实际启动并验证关键流程。
 
 ## 6. 会话交接与文档沉淀
 
-阶段完成时，把最终有效的架构和取舍写入开发记录；当前结构性决定写入 `ARCHITECTURE.md`，重要取舍写入 `DECISIONS.md`，未完成事项写入 `TODO.md`。如果必须切换窗口但目标尚未完成，留下 Session Handoff，至少包含目标、已验证事实、已完成工作、剩余问题、下一步和相关文件。聊天内容只作为当前工作台，不作为唯一项目记录。
+阶段完成时，把最终有效的架构和取舍写入开发记录；如仓库已建立对应文档，则结构性决定写入 `ARCHITECTURE.md`，重要取舍写入 `DECISIONS.md`，未完成事项写入 `TODO.md`，尚未建立时按需要创建。若必须切换窗口但目标尚未完成，留下 Session Handoff，至少包含目标、已验证事实、已完成工作、剩余问题、下一步和相关文件。聊天内容只作为当前工作台，不作为唯一项目记录。
