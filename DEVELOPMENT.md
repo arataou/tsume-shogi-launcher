@@ -62,6 +62,29 @@ git worktree add .\.worktrees\<task-slug> -b fix/<主题> origin/main
 
 用户明确提出的小功能和范围明确的小缺陷修复，验证通过后自动推送分支、创建 Pull Request 并合并到 `main`。如果权限、冲突、检查失败或其他外部条件阻止该流程，应停在安全位置并说明原因；未经用户明确要求，不删除原始 worktree。
 
+### 2.1 合并后同步实际运行目录
+
+专用 worktree 只用于隔离开发，不能视为用户实际启动的目录已经更新。当前运行目录是：
+
+```text
+D:\个人开发软件\诘将棋启动器\outputs\ShogiExplorer-Tsume
+```
+
+每次 PR 合并到 `main` 后，若变更涉及启动器页面、训练逻辑、题库或运行说明，必须按以下顺序同步并确认：
+
+1. 在根目录 worktree 检查 `git status --short --branch`，确认没有用户或其他窗口的未提交改动；
+2. 确认 `outputs/ShogiExplorer-Tsume` 是当前仓库根目录下的目标目录，并从已合并的 `main` 安全 fast-forward；
+3. 禁止用 `reset`、`clean`、`stash`、强制覆盖复制或删除来处理冲突。发现分叉、脏工作区、路径不一致或运行中的其他版本时，先停下并报告；
+4. 同步后确认 `TsumeLauncher.html`、`launcher.js`、`puzzle-data.js`、`server.ps1`、`Start.bat`、`engines` 和 `puzzles` 仍存在，再运行 `node --check .\outputs\ShogiExplorer-Tsume\launcher.js` 和适用的启动/服务检查；
+5. 普通源码同步不自动替换 `TsumeLauncher.exe` 或生成/覆盖 `ShogiExplorer-Tsume-Full.zip`。宿主从自身目录启动 `server.ps1`，页面和题库由该目录提供，因此前端源码更新后可以复用现有 EXE，但仍需做一次启动冒烟；如果改动宿主、服务、引擎或打包逻辑，必须走完整发布验收。
+
+同步必须遵守以下兼容性约束：
+
+- 不改变 `outputs/ShogiExplorer-Tsume` 内现有文件和目录的名称、相对路径及 `Start.bat` 入口；
+- 不改变 `%LOCALAPPDATA%\TsumeLauncher\training-data.json`、`mateLength:id` 题目主键和已有 `progress` / `ProgressRecord` 字段；
+- 新增 `settings` 或记录字段必须有默认值和归一化逻辑，读取旧 JSON 时保留未知字段，不能通过同步或启动清空用户训练记录；
+- 发行物与源码分开验收：只有明确进入发布批次时，才重新构建宿主、替换 EXE、生成 ZIP，并从全新解压目录验证启动、记录读写和引擎回退。
+
 ## 3. 提交规范
 
 一个提交应表达一个完整、可解释的变更，不把无关重排、版本号、二进制文件混在一起。建议使用以下前缀：
