@@ -12,7 +12,7 @@
 - 用户指定的实际运行目录是仓库根目录下的 `outputs/ShogiExplorer-Tsume`，当前绝对路径为 `D:\个人开发软件\诘将棋启动器\outputs\ShogiExplorer-Tsume`。专用 worktree 只负责隔离开发；PR 合并后必须单独确认该根目录是否已同步，不能把 worktree 已更新当成运行目录已更新。
 - 同步前必须确认根目录 worktree 的 `git status --short --branch` 没有未提交改动，并确认目标目录确实属于当前仓库；只允许从已合并的 `main` 做安全 fast-forward。发现根目录有改动、分支分叉、目标路径不明确或其他窗口正在使用时，保留原文件并暂停，不得用 `reset`、`clean`、`stash`、强制覆盖复制或删除来绕过冲突。
 - 同步默认更新受 Git 管理的前端源码、题库和说明文件，不删除或覆盖用户已有的未跟踪/忽略文件。`TsumeLauncher.exe` 和 `ShogiExplorer-Tsume-Full.zip` 是发行物，不因普通源码同步自动替换；源码同步完成不等于发行包已重新发布。
-- 兼容性边界必须保持稳定：保留 `TsumeLauncher.exe`、`Start.bat`、`TsumeLauncher.html`、`launcher.js`、`puzzle-data.js`、`server.ps1`、`engines` 和 `puzzles` 的路径与名称；保留 `%LOCALAPPDATA%\TsumeLauncher\training-data.json` 存档路径、`mateLength:id` 题目主键以及已有 `progress` / `ProgressRecord` 字段。新增设置或记录字段只能采用可选、可归一化的向后兼容方式，不得清空、重命名或覆盖旧记录。
+- 兼容性边界必须保持稳定：保留 `TsumeLauncher.exe`、`TsumeLauncher.html`、`launcher.js`、`puzzle-data.js`、`server.ps1`、`engines` 和 `puzzles` 的路径与名称；保留 `%LOCALAPPDATA%\TsumeLauncher\training-data.json` 存档路径、`mateLength:id` 题目主键以及已有 `progress` / `ProgressRecord` 字段。新增设置或记录字段只能采用可选、可归一化的向后兼容方式，不得清空、重命名或覆盖旧记录。`TsumeLauncher.exe` 是唯一启动入口。
 - 宿主程序会从自身所在目录启动 `server.ps1`，服务再从该目录读取 HTML、JavaScript 和题库；因此前端源码同步后，现有 EXE 理论上可以读取新文件，但必须至少重新做文件存在性、`launcher.js` 语法和关键启动流程检查。若变更宿主源码、服务脚本、引擎或打包逻辑，则必须重新发布、打包并从全新解压目录验证，不能只同步页面文件。
 
 ### 小变更快速通道
@@ -31,7 +31,7 @@
 - 用户会在多个窗口或任务中协作开发。新功能、较大修复、重构和需要持续调试的任务，默认使用独立 Git worktree，避免直接在共享主工作区修改。
 - 共享主工作区是仓库根目录，主要用于只读检查、跨分支整合和用户明确要求的小型文档修改；不得在其中同时开展多个相互独立的开发任务。
 - 所有辅助 worktree 统一放在仓库根目录的 `.worktrees/<task-slug>/` 下。除非用户明确指定，不在仓库外或其他自定义目录创建 worktree；`.worktrees/` 只用于存放 Git worktree，不放普通文件。
-- 每个 worktree 使用独立分支；创建新分支时默认使用 `codex/<task-slug>` 前缀，除非用户指定已有分支或明确要求其他名称。不得让多个 worktree 同时绑定同一个分支。
+- 每个 worktree 使用独立分支；分支名按任务类型使用 `feature/<主题>`、`fix/<主题>`、`docs/<主题>` 或 `build/<主题>` 等前缀，不再额外添加工具专属前缀。不得让多个 worktree 同时绑定同一个分支。
 - `.worktrees/` 已纳入仓库忽略规则，其中的目录和文件不属于主工作区待提交内容。
 
 ### 状态确认与播报
